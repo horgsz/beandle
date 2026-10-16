@@ -5,7 +5,8 @@ A Wordle clone where every answer is a five-letter **bean**. A new bean is plant
 - 6 guesses to find a 5-letter word, with green/yellow/grey feedback on bean-shaped tiles
 - On-screen keyboard plus physical keyboard (letters, Enter, Backspace)
 - Built for phones: fits portrait screens without scrolling, large tap targets, safe-area aware, no double-tap zoom
-- Progress and stats are saved per puzzle in the browser; results can be shared as an emoji grid
+- "Bean N of 9" day counter, a bean fact after each game, a 9-day Bean Bowl tracker with a shareable finale on day 9
+- Progress and stats are saved per puzzle in the browser; results are shared as a bean-framed emoji grid via copy or the phone's share sheet
 - Static site with no backend. The answer list lives only in GitHub secrets, and the browser never receives the day's word to score with; it gets a scrambled feedback table generated at deploy time
 
 ## Repo layout
@@ -46,6 +47,7 @@ In the repo go to **Settings → Secrets and variables → Actions → New repos
 | `BEANDLE_WORDS` | yes | Your answer list: 5-letter words separated by commas, spaces or newlines (case doesn't matter) |
 | `BEANDLE_SEED` | yes | A long random string. It decides the order the words come up in and the puzzle ids |
 | `BEANDLE_OVERRIDE` | no | Forces a specific word (see [Manual override](#manual-override)). Leave unset normally |
+| `BEANDLE_FACTS` | no | JSON of bean facts, e.g. `{"pinto": "…", "cacao": "…"}`. The day's fact is locked to its answer and shown after you finish; days without one get a general bean fact. Kept secret because a public list would give away the answers |
 
 ```sh
 # Paste your list on one line when prompted (input is hidden and not saved locally):

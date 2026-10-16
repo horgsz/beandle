@@ -45,6 +45,7 @@ jobs:
           BEANDLE_WORDS: ${{ secrets.BEANDLE_WORDS }}
           BEANDLE_SEED: ${{ secrets.BEANDLE_SEED }}
           BEANDLE_OVERRIDE: ${{ secrets.BEANDLE_OVERRIDE }}
+          BEANDLE_FACTS: ${{ secrets.BEANDLE_FACTS }}
         run: node scripts/build-site.mjs
 
       - uses: actions/configure-pages@v5

@@ -103,3 +103,17 @@ test("guess list is five-letter lowercase words", () => {
   assert.ok(VALID_GUESSES.length > 2000);
   assert.ok(VALID_GUESSES.every((w) => /^[a-z]{5}$/.test(w)));
 });
+
+test("the day's fact is locked to the answer and the day number is stamped", async () => {
+  const FACT = "Cranes can fly at altitudes of 10,000 metres.";
+  const { meta, table } = await seal(WORD, GUESSES, { day: 3, fact: FACT });
+  assert.equal(meta.d, 3);
+  assert.ok(!JSON.stringify(meta).toLowerCase().includes("altitudes"));
+  const p = await openPuzzle(meta, table);
+  assert.equal(p.day, 3);
+  assert.equal(await p.fact(WORD), FACT);
+  assert.equal(await p.fact("react"), null);
+  const plain = await openPuzzle(...Object.values(await seal()));
+  assert.equal(plain.day, null);
+  assert.equal(await plain.fact(WORD), null);
+});

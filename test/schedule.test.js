@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumber, START_DATE } from "../scripts/schedule.mjs";
+import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumber, START_DATE, eventDay, EVENT_DAYS } from "../scripts/schedule.mjs";
+
+test("event days count from launch day", () => {
+  assert.equal(eventDay(START_DATE), 1);
+  assert.equal(eventDay("2026-10-24"), EVENT_DAYS);
+  assert.equal(choosePuzzle({ words: "apple crane", seed: "test-seed-0123456789abcdef", now: new Date("2026-10-18T03:00:00Z") }).day, 3);
+});
 
 const SEED = "test-seed-0123456789abcdef";
 const WORDS = "apple, crane, slate, trace, flint\nghost plumb river stone quilt";

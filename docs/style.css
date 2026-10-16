@@ -427,28 +427,105 @@ main {
 }
 .dist-row .bar.highlight { background: var(--correct); }
 
-.footer-row {
+#countdown { font-size: 14px; text-align: center; margin-top: 14px; }
+#countdown:empty { display: none; }
+
+.share-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-  gap: 12px;
+  gap: 10px;
+  margin-top: 12px;
 }
-#countdown { font-size: 14px; }
-#share-btn {
-  flex: none;
-  background: var(--correct);
-  color: #fff;
+#share-btn, #send-btn, .bowl-share {
+  flex: 1 1 0;
   border: 0;
   border-radius: 999px;
-  padding: 12px 20px;
-  min-height: 44px;
+  padding: 12px 16px;
+  min-height: 48px;
   font-size: 16px;
   font-weight: bold;
   cursor: pointer;
   box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
 }
-#share-btn:active { animation: squish 0.18s ease; }
+#share-btn { background: var(--correct); color: #fff; flex-grow: 1.4; }
+#send-btn { background: var(--bean-cream); color: var(--bean-brown); }
+#share-btn:active, #send-btn:active, .bowl-share:active { animation: squish 0.18s ease; }
+
+/* ---- Day badge, bean fact, Bean Bowl ----------------------------------- */
+
+.day-badge {
+  align-self: center;
+  margin-left: 2px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--correct);
+  color: #fff;
+  font: bold 13px/1.2 "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: 0;
+}
+.day-label {
+  text-align: center;
+  margin: -6px 0 10px;
+  font-weight: bold;
+  color: var(--correct);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.fact {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--tile-empty);
+  border: 2px solid var(--bean-cream);
+  text-align: left;
+  animation: pop-in 0.3s cubic-bezier(.3, 1.5, .5, 1);
+}
+.fact-title { font-weight: bold; color: var(--bean-brown); font-size: 14px; }
+.fact p { margin: 4px 0 0; font-size: 15px; line-height: 1.35; }
+
+.bowl { margin-top: 14px; text-align: center; }
+.bowl h3 { margin: 0 0 8px; text-align: left; }
+.bowl-track {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+}
+.bowl-day { position: relative; display: flex; flex-direction: column; align-items: center; }
+.bowl-day svg { width: 100%; max-width: 36px; aspect-ratio: 1.3; display: block; }
+.bowl-day path { fill: var(--tile-empty); stroke: var(--border); stroke-width: 6; }
+.bowl-day .bowl-score {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  aspect-ratio: 1.3;
+  max-width: 36px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 8%;
+  font-weight: bold;
+  font-size: 13px;
+  color: #fff;
+}
+.bowl-day .bowl-num { font-size: 11px; color: var(--absent); margin-top: 2px; }
+.bowl-day.won path { fill: var(--correct); stroke: #3d7129; }
+.bowl-day.lost path { fill: var(--absent); stroke: #74624f; }
+.bowl-day.today path { fill: #fffaf0; stroke: var(--border-filled); stroke-dasharray: 10 8; }
+.bowl-day.today .bowl-score { color: var(--border-filled); }
+.bowl-day.today svg { animation: hop 1.6s ease infinite; }
+.bowl-day.missed path { fill: none; stroke: var(--border); stroke-dasharray: 6 8; }
+.bowl-day.future { opacity: 0.55; }
+.bowl-day.today .bowl-num { color: var(--bean-brown); font-weight: bold; }
+.bowl-summary { margin: 10px 0 0; font-weight: bold; color: var(--bean-brown); }
+.bowl-share {
+  width: 100%;
+  margin-top: 10px;
+  background: var(--present);
+  color: #fff;
+}
 
 /* ---- "Copied!" modal --------------------------------------------------- */
 
@@ -580,3 +657,6 @@ main {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* Share buttons sit right under the result; add space before the fact/stats below. */
+#result-msg + .share-row { margin: 0 0 14px; }
+.share-row:not(:has(button:not(.hidden))) { display: none; }

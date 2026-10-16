@@ -68,6 +68,14 @@ function shuffled(words, seed, cycle) {
 /** First puzzle day. Cycles through the word list are counted from here. */
 export const START_DATE = "2026-10-16";
 
+/** Length of the group event; the client shows "Bean N of EVENT_DAYS" and a finale on the last day. */
+export const EVENT_DAYS = 9;
+
+/** 1-based event day for a puzzle date (day 1 = START_DATE). */
+export function eventDay(date) {
+  return dayNumber(date) - dayNumber(START_DATE) + 1;
+}
+
 /**
  * Word for a puzzle date. From START_DATE the words follow one seeded shuffle, repeated
  * forever, so every word comes back exactly every list-length days and any run of that
@@ -92,8 +100,8 @@ export function choosePuzzle({ words, seed, override, now = new Date() }) {
   const o = String(override || "").trim().toLowerCase();
   if (o) {
     if (!/^[a-z]{5}$/.test(o)) throw new Error("BEANDLE_OVERRIDE must be 5 letters A–Z");
-    return { date, word: o, id: puzzleIdFor(seed, date, o), source: "override" };
+    return { date, day: eventDay(date), word: o, id: puzzleIdFor(seed, date, o), source: "override" };
   }
   const list = parseWords(words);
-  return { date, word: wordForDate(list, seed, date), id: puzzleIdFor(seed, date), source: "schedule" };
+  return { date, day: eventDay(date), word: wordForDate(list, seed, date), id: puzzleIdFor(seed, date), source: "schedule" };
 }

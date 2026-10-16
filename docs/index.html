@@ -29,6 +29,7 @@
         </svg>
       </button>
       <span>Beandle</span>
+      <span class="day-badge hidden" id="day-badge"></span>
     </h1>
     <button class="icon-btn" id="stats-btn" aria-label="Statistics">📊</button>
   </header>
@@ -58,19 +59,31 @@
     <div class="modal-content">
       <button class="close" data-close aria-label="Close">&times;</button>
       <h2 id="stats-title">Bean counter</h2>
+      <div class="day-label hidden" id="day-label"></div>
       <div id="result-msg"></div>
+      <div class="share-row">
+        <button id="share-btn" class="hidden">Spill the beans</button>
+        <button id="send-btn" class="hidden" aria-label="Send to a chat">Send ↗</button>
+      </div>
+      <div class="fact hidden" id="fact">
+        <div class="fact-title">🫘 Bean fact</div>
+        <p id="fact-text"></p>
+      </div>
       <div class="stats">
         <div><span id="stat-played">0</span>Played</div>
         <div><span id="stat-win">0</span>Win %</div>
         <div><span id="stat-streak">0</span>Streak</div>
         <div><span id="stat-max">0</span>Best streak</div>
       </div>
+      <div class="bowl hidden" id="bowl">
+        <h3 id="bowl-title">Your Bean Bowl</h3>
+        <div class="bowl-track" id="bowl-track"></div>
+        <div class="bowl-summary hidden" id="bowl-summary"></div>
+        <button class="bowl-share hidden" id="bowl-share">🏆 Copy my Bean Bowl</button>
+      </div>
       <h3>Guesses</h3>
       <div id="distribution"></div>
-      <div class="footer-row">
-        <div id="countdown"></div>
-        <button id="share-btn" class="hidden">Spill the beans</button>
-      </div>
+      <div id="countdown"></div>
     </div>
   </div>
 

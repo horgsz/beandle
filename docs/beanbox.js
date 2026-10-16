@@ -203,7 +203,33 @@ export async function sealPuzzle(answer, guessWords, options = {}) {
     i: toHex(iv),
     c: toHex(new Uint8Array(cipher)),
   };
+  if (Number.isInteger(options.day)) meta.d = options.day;
+  if (options.fact) {
+    // The day's bean fact, locked with a key derived from the answer itself, so it can
+    // only be read once the player knows the word (a win, or the loss reveal).
+    const factSalt = rand(16);
+    const factIv = rand(12);
+    const factKey = await factKeyFor(w, factSalt, id, iterations);
+    const sealed = await subtle.encrypt({ name: "AES-GCM", iv: factIv }, factKey, enc.encode(String(options.fact)));
+    meta.fs = toHex(factSalt);
+    meta.fi = toHex(factIv);
+    meta.f = toHex(new Uint8Array(sealed));
+  }
   return { meta, table };
+}
+
+async function factKeyFor(word, factSalt, id, iterations) {
+  const pep = pepper();
+  const base = await subtle.importKey("raw", enc.encode(`fact:${word}`), "PBKDF2", false, ["deriveKey"]);
+  const key = await subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt: concat(factSalt, enc.encode(id), pep), iterations },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+  pep.fill(0);
+  return key;
 }
 
 /**
@@ -241,6 +267,19 @@ export async function openPuzzle(meta, tableBytes) {
       }
       h.fill(0);
       return null;
+    },
+    /** 1-based event day, if the build stamped one. */
+    day: Number.isInteger(meta.d) ? meta.d : null,
+    /** The day's bean fact, given the answer (known after a win or the loss reveal). */
+    async fact(word) {
+      if (!meta.f || !/^[a-z]{5}$/.test(word)) return null;
+      try {
+        const key = await factKeyFor(word, fromHex(meta.fs), id, iterations);
+        const plain = await subtle.decrypt({ name: "AES-GCM", iv: fromHex(meta.fi) }, key, fromHex(meta.f));
+        return new TextDecoder().decode(plain);
+      } catch {
+        return null;
+      }
     },
     /** Only call once the game is lost. Deliberately slow. */
     async reveal() {

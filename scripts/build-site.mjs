@@ -39,12 +39,30 @@ try {
   fail(e.message);
 }
 
-const { meta, table } = await sealPuzzle(chosen.word, VALID_GUESSES, { id: chosen.id });
+// Optional private bean facts (JSON object: word → fact). Kept in a secret rather than the
+// repo because a public list of facts would give away which beans are answers.
+let facts = {};
+if (process.env.BEANDLE_FACTS) {
+  try {
+    const parsed = JSON.parse(process.env.BEANDLE_FACTS);
+    if (parsed && typeof parsed === "object") {
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === "string" && v.trim()) facts[String(k).trim().toLowerCase()] = v.trim().slice(0, 400);
+      }
+    }
+  } catch {
+    console.log("⚠ BEANDLE_FACTS isn't valid JSON; using general bean facts instead");
+  }
+}
+const fact = facts[chosen.word] || null;
+
+const { meta, table } = await sealPuzzle(chosen.word, VALID_GUESSES, { id: chosen.id, day: chosen.day, fact });
 const opened = await openPuzzle(meta, table);
 const check = await opened.score(chosen.word);
 const revealOk = (await opened.reveal()) === chosen.word;
+const factOk = !fact || (await opened.fact(chosen.word)) === fact;
 chosen.word = null;
-if (!check || !check.every((s) => s === "correct") || !revealOk) fail("Self-check failed");
+if (!check || !check.every((s) => s === "correct") || !revealOk || !factOk) fail("Self-check failed");
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
@@ -67,4 +85,4 @@ await copyFile(join(docs, "style.css"), join(out, "style.css"));
 await writeFile(join(out, "puzzle.json"), `${JSON.stringify(meta)}\n`);
 await writeFile(join(out, "puzzle.bin"), table);
 
-console.log(`✔ Built _site for puzzle day ${chosen.date} (${chosen.source})`);
+console.log(`✔ Built _site for puzzle day ${chosen.date}, bean ${chosen.day} (${chosen.source}${fact ? ", with fact" : ""})`);

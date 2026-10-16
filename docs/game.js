@@ -343,30 +343,177 @@ function openStats() {
   else if (done) msg.textContent = `Has-bean! Today's bean was ${revealed.toUpperCase()}`;
   else msg.textContent = "";
   document.getElementById("share-btn").classList.toggle("hidden", !done);
+  document.getElementById("send-btn").classList.toggle("hidden", !done || !canSend());
   document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 12pm (Sydney)" : "";
+  const dayLabel = document.getElementById("day-label");
+  dayLabel.textContent = dayName();
+  dayLabel.classList.toggle("hidden", !dayName());
+  renderBowl();
+  renderFact();
   if (done && !shareText) prepareShare();
 
   statsModal.classList.remove("hidden");
 }
 
+// ---- Event day, bean facts and the Bean Bowl -------------------------------
+
+const EVENT_DAYS = 9;
+const HISTORY_KEY = "beandle-history";
+const beanHistory = load(HISTORY_KEY, {});
+
+function dayName() {
+  const d = puzzle && puzzle.day;
+  if (!d || d < 1) return "";
+  return d <= EVENT_DAYS ? `Bean ${d} of ${EVENT_DAYS}` : `Bean ${d}`;
+}
+
+function dayTag() {
+  const d = puzzle && puzzle.day;
+  if (!d || d < 1) return "";
+  return d <= EVENT_DAYS ? `#${d}/${EVENT_DAYS} · ` : `#${d} · `;
+}
+
+// General bean trivia, used when there's no fact for the day's bean. Not word-specific.
+const GENERAL_FACTS = [
+  "Beans are legumes: their roots host bacteria that pull nitrogen out of the air and feed the soil.",
+  "Beans have been grown for thousands of years, from the Andes to ancient Egypt and China.",
+  "A cup of cooked beans has about 15 grams of protein, roughly as much as two eggs.",
+  "Bean plants are either 'bush' beans that stay compact or 'pole' beans that climb as they grow.",
+  "Chocolate, coffee and vanilla all come from 'beans', but none of them is actually a legume.",
+  "In some countries, beans are eaten for good luck on New Year's Day.",
+  "Dried beans can keep for years. Some seeds from old seed banks still sprout decades later.",
+  "Beans and rice together provide all the essential amino acids, a complete protein.",
+  "Jumping beans jump because a tiny moth larva inside wriggles when it gets warm.",
+];
+
+let factText = null;
+
+async function loadFact() {
+  if (!revealed || factText) return;
+  const specific = await puzzle.fact(revealed);
+  const d = puzzle.day && puzzle.day > 0 ? puzzle.day - 1 : 0;
+  factText = specific || GENERAL_FACTS[d % GENERAL_FACTS.length];
+  renderFact();
+}
+
+function renderFact() {
+  const box = document.getElementById("fact");
+  const show = !!factText && !!state && state.status !== "playing";
+  box.classList.toggle("hidden", !show);
+  if (show) document.getElementById("fact-text").textContent = factText;
+}
+
+function recordHistory(lines) {
+  const d = puzzle.day;
+  if (!d || d < 1 || !state || state.status === "playing") return;
+  const score = state.status === "won" ? state.guesses.length : "X";
+  const prev = beanHistory[d];
+  if (prev && prev.id === puzzle.id && prev.score === score) return;
+  beanHistory[d] = { id: puzzle.id, score, grid: lines };
+  save(HISTORY_KEY, beanHistory);
+  renderBowl();
+}
+
+function bowlDays() {
+  const today = puzzle && puzzle.day ? puzzle.day : 0;
+  return Array.from({ length: EVENT_DAYS }, (_, i) => {
+    const d = i + 1;
+    const h = beanHistory[d];
+    if (h) return { d, kind: h.score === "X" ? "lost" : "won", score: h.score };
+    if (d === today) return { d, kind: "today" };
+    return { d, kind: d < today ? "missed" : "future" };
+  });
+}
+
+function bowlSummary(days) {
+  const won = days.filter((x) => x.kind === "won");
+  const played = days.filter((x) => x.kind === "won" || x.kind === "lost").length;
+  const avg = won.length ? (won.reduce((n, x) => n + x.score, 0) / won.length).toFixed(1) : null;
+  return { won: won.length, played, avg };
+}
+
+function finaleReady() {
+  const today = puzzle && puzzle.day;
+  if (!today || today < EVENT_DAYS) return false;
+  return today > EVENT_DAYS || (!!state && state.status !== "playing");
+}
+
+function renderBowl() {
+  const box = document.getElementById("bowl");
+  const today = puzzle && puzzle.day;
+  if (!today || today < 1) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const days = bowlDays();
+  const track = document.getElementById("bowl-track");
+  track.innerHTML = "";
+  for (const x of days) {
+    const cell = document.createElement("div");
+    cell.className = `bowl-day ${x.kind}`;
+    const label = x.kind === "won" ? String(x.score) : x.kind === "lost" ? "✕" : x.kind === "today" ? "?" : "";
+    const what = { won: `solved in ${x.score}`, lost: "not solved", today: "today", missed: "missed", future: "coming up" }[x.kind];
+    cell.setAttribute("aria-label", `Day ${x.d}: ${what}`);
+    cell.innerHTML = `<svg viewBox="0 0 130 100" aria-hidden="true"><path d="${BEAN_PATH}"/></svg><span class="bowl-score">${label}</span><span class="bowl-num">${x.d}</span>`;
+    track.appendChild(cell);
+  }
+  const finale = finaleReady();
+  document.getElementById("bowl-title").textContent = finale ? "🏆 Your Bean Bowl is complete!" : "Your Bean Bowl";
+  const summary = document.getElementById("bowl-summary");
+  summary.classList.toggle("hidden", !finale);
+  document.getElementById("bowl-share").classList.toggle("hidden", !finale);
+  if (finale) {
+    const s = bowlSummary(days);
+    summary.textContent = `Solved ${s.won} of ${EVENT_DAYS}${s.avg ? ` · average ${s.avg} guesses` : ""}${s.won === EVENT_DAYS ? " · a perfect bowl! 👑" : ""}`;
+  }
+}
+
+function bowlShareText() {
+  const days = bowlDays();
+  const s = bowlSummary(days);
+  const rows = days.map((x) => {
+    if (x.kind === "won") return `Day ${x.d}  🟩 ${x.score}/${MAX_GUESSES}`;
+    if (x.kind === "lost") return `Day ${x.d}  🟫 X/${MAX_GUESSES}`;
+    return `Day ${x.d}  ⬜ –`;
+  });
+  const url = location.origin + location.pathname;
+  return `🏆 My Beandle Bean Bowl\n🫘 Solved ${s.won}/${EVENT_DAYS}${s.avg ? ` · avg ${s.avg} guesses` : ""}\n\n${BEAN_ROW}\n${rows.join("\n")}\n${BEAN_ROW}\nBean Bowl champion? 👑\n${url}`;
+}
+
 // ---- Sharing --------------------------------------------------------------
 
 let shareText = null;
+const EMOJI = { correct: "🟩", present: "🟨", absent: "🟫" };
 
-async function buildShareText() {
+async function resultLines() {
   // Green/yellow keep the familiar colour-blind-friendly contrast; brown squares read as beans.
-  const EMOJI = { correct: "🟩", present: "🟨", absent: "🟫" };
-  const score = state.status === "won" ? state.guesses.length : "X";
   const lines = [];
   for (const g of state.guesses) lines.push((await puzzle.score(g)).map((s) => EMOJI[s]).join(""));
+  return lines;
+}
+
+const BEAN_ROW = "🫘".repeat(7);
+
+/** Frame emoji grid rows in beans so a share is unmistakably Beandle, not Wordle. */
+function beanFrame(rows) {
+  return [BEAN_ROW, ...rows.map((r) => `🫘${r}🫘`), BEAN_ROW].join("\n");
+}
+
+async function buildShareText() {
+  const lines = await resultLines();
+  recordHistory(lines);
+  const score = state.status === "won" ? state.guesses.length : "X";
   const tagline = state.status === "won" ? WIN_MESSAGES[state.guesses.length - 1] : "Has-bean!";
   const url = location.origin + location.pathname;
-  return `🫘 Beandle ${score}/${MAX_GUESSES} · ${tagline}\n\n${lines.join("\n")}\n\n${url}`;
+  return `🫘 Beandle ${dayTag()}${score}/${MAX_GUESSES}\n${tagline}\n\n${beanFrame(lines)}\n${url}`;
 }
 
 /** Build the share text ahead of time, so a tap copies straight away (iOS Safari needs that). */
 async function prepareShare() {
   try { shareText = await buildShareText(); } catch { /* built on demand instead */ }
+  loadFact();
+}
+
+function canSend() {
+  return typeof navigator.share === "function";
 }
 
 async function copyText(text) {
@@ -439,6 +586,27 @@ document.getElementById("share-btn").addEventListener("click", async () => {
   if (ok) setMood("giggle", 900);
 });
 
+// Opens the phone's share sheet (WhatsApp, Messages…). Needs the text ready at tap time.
+document.getElementById("send-btn").addEventListener("click", async () => {
+  const text = shareText || await buildShareText();
+  shareText = text;
+  try {
+    await navigator.share({ text });
+    setMood("giggle", 900);
+  } catch (e) {
+    if (e && e.name === "AbortError") return; // they closed the share sheet
+    const ok = await copyText(text);
+    showCopied(text, ok);
+  }
+});
+
+document.getElementById("bowl-share").addEventListener("click", async () => {
+  const text = bowlShareText();
+  const ok = await copyText(text);
+  showCopied(text, ok);
+  if (ok) setMood("cheer", 1600);
+});
+
 // ---- Startup --------------------------------------------------------------
 
 async function fetchMeta() {
@@ -496,6 +664,16 @@ async function start() {
   }
   renderCurrent();
   busy = false;
+
+  const badge = document.getElementById("day-badge");
+  if (puzzle.day && puzzle.day > 0) {
+    badge.textContent = puzzle.day <= EVENT_DAYS ? `${puzzle.day}/${EVENT_DAYS}` : `#${puzzle.day}`;
+    badge.setAttribute("aria-label", dayName());
+    badge.title = dayName();
+    badge.classList.remove("hidden");
+  }
+  // Finished games (including ones from before this update) go into the Bean Bowl and get a fact.
+  if (state.status !== "playing") prepareShare();
 
   if (state.status !== "playing") {
     setTimeout(openStats, 300);
