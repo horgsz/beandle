@@ -12,7 +12,7 @@ const validWords = new Set(VALID_GUESSES);
 
 // Kidney-bean outline: bigger left lobe, dip in the top. Stretched to fill each tile.
 const BEAN_PATH = "M65 18C50 18 44 4 28 4C12 4 2 20 2 46C2 76 30 98 65 98C100 98 128 76 128 46C128 20 118 4 102 4C86 4 80 18 65 18Z";
-const BEAN_SVG = `<svg class="bean" viewBox="0 0 130 100" preserveAspectRatio="none" aria-hidden="true"><path d="${BEAN_PATH}"/></svg>`;
+const BEAN_SVG = `<svg class="bean" viewBox="0 0 130 100" preserveAspectRatio="none" aria-hidden="true"><path d="${BEAN_PATH}"/><ellipse class="shine" cx="30" cy="28" rx="13" ry="6" transform="rotate(-24 30 28)"/></svg>`;
 
 // ---- Persistence ----------------------------------------------------------
 
@@ -146,13 +146,74 @@ function shake() {
   row.classList.add("shake");
 }
 
+// ---- Bean personality -----------------------------------------------------
+
+const mascot = document.getElementById("mascot");
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let moodTimer;
+
+/** Mascot moods: idle | happy | oops | sad | cheer. `ms` 0 keeps the mood. */
+function setMood(mood, ms = 1400) {
+  mascot.dataset.mood = mood;
+  clearTimeout(moodTimer);
+  if (ms) moodTimer = setTimeout(() => { mascot.dataset.mood = "idle"; }, ms);
+}
+
+const FX_BEAN = `<svg viewBox="0 0 130 100" aria-hidden="true"><path d="${BEAN_PATH}"/></svg>`;
+
+/** Rain little beans down the screen: a colourful shower to celebrate, a few sad ones to commiserate. */
+function beanShower(kind) {
+  if (reduceMotion) return;
+  const colours = kind === "win"
+    ? ["var(--correct)", "var(--present)", "var(--bean-red)", "var(--bean-cream)", "var(--absent)"]
+    : ["var(--absent)", "var(--bean-brown)"];
+  const count = kind === "win" ? 26 : 9;
+  const layer = document.createElement("div");
+  layer.className = `bean-fx ${kind}`;
+  for (let i = 0; i < count; i++) {
+    const b = document.createElement("span");
+    b.className = "fx-bean";
+    b.innerHTML = FX_BEAN;
+    b.style.setProperty("--x", `${Math.random() * 100}%`);
+    b.style.setProperty("--dx", `${Math.round((Math.random() - 0.5) * 140)}px`);
+    b.style.setProperty("--rot", `${Math.round((Math.random() - 0.5) * 900)}deg`);
+    b.style.setProperty("--delay", `${(Math.random() * (kind === "win" ? 0.5 : 1)).toFixed(2)}s`);
+    b.style.setProperty("--size", `${Math.round(16 + Math.random() * 16)}px`);
+    b.style.color = colours[i % colours.length];
+    layer.appendChild(b);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 4000);
+}
+
+function beanBurst() {
+  beanShower("win");
+}
+
+/** A little running commentary after a guess that didn't win. */
+function reactToGuess(result) {
+  const hits = result.filter((s) => s !== "absent").length;
+  const greens = result.filter((s) => s === "correct").length;
+  if (greens >= 4) { toast("So close! Almost bean-go!", 1300); setMood("cheer"); }
+  else if (hits === 0) { toast("Not a bean in sight!", 1300); setMood("oops"); }
+  else if (hits >= 3) setMood("happy");
+}
+
 // ---- Game flow ------------------------------------------------------------
 
-const WIN_MESSAGES = ["Bean-credible!", "Magnificent!", "Splendid!", "Great!", "Nice!", "Phew!"];
+const WIN_MESSAGES = [
+  "Bean-credible!",
+  "Un-bean-lievable!",
+  "You spilled the beans!",
+  "Full of beans!",
+  "Bean there, done that!",
+  "Phew! That was a close bean!",
+];
+const LOSE_MESSAGE = (word) => `Has-bean! It was ${word.toUpperCase()}`;
 const isWin = (result) => result.every((s) => s === "correct");
 
 async function submit() {
-  if (current.length < WORD_LENGTH) { toast("Not enough letters"); shake(); return; }
+  if (current.length < WORD_LENGTH) { toast("Not enough beans in the pod"); shake(); setMood("oops"); return; }
 
   busy = true;
   const guess = current;
@@ -160,8 +221,9 @@ async function submit() {
   // The puzzle word is always accepted, even if it's missing from the guess list.
   if (!validWords.has(guess) && !isWin(result)) {
     busy = false;
-    toast("Not in word list");
+    toast("Never bean heard of it");
     shake();
+    setMood("oops");
     return;
   }
 
@@ -175,13 +237,20 @@ async function submit() {
     state.status = "won";
     revealed = guess;
     rows[r].el.classList.add("win");
-    toast(WIN_MESSAGES[r], 2000);
+    beanBurst();
+    setMood("cheer", 0);
+    toast(WIN_MESSAGES[r], 2200);
     finishGame(true, r + 1);
   } else if (state.guesses.length === MAX_GUESSES) {
     state.status = "lost";
     revealed = await puzzle.reveal();
-    toast(`The bean was ${revealed.toUpperCase()}`, 0);
+    rows[r].el.classList.add("lose");
+    beanShower("lose");
+    setMood("sad", 0);
+    toast(LOSE_MESSAGE(revealed), 0);
     finishGame(false);
+  } else {
+    reactToGuess(result);
   }
   save(STATE_KEY, state);
   busy = false;
@@ -211,15 +280,31 @@ function handleKey(key) {
   else if (/^[a-z]$/.test(key) && current.length < WORD_LENGTH) { current += key; renderCurrent(); }
 }
 
+function flashKey(key) {
+  const el = keyboardEl.querySelector(`.key[data-key="${key}"]`);
+  if (!el) return;
+  el.classList.remove("pressed");
+  void el.offsetWidth;
+  el.classList.add("pressed");
+}
+
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (document.querySelector(".modal:not(.hidden)")) {
     if (e.key === "Escape") closeModals();
     return;
   }
-  if (e.key === "Enter") { e.preventDefault(); handleKey("enter"); }
-  else if (e.key === "Backspace") handleKey("back");
-  else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toLowerCase());
+  if (e.key === "Enter") { e.preventDefault(); flashKey("enter"); handleKey("enter"); }
+  else if (e.key === "Backspace") { flashKey("back"); handleKey("back"); }
+  else if (/^[a-zA-Z]$/.test(e.key)) { flashKey(e.key.toLowerCase()); handleKey(e.key.toLowerCase()); }
+});
+
+// Poke the bean.
+mascot.addEventListener("click", () => {
+  if (mascot.dataset.mood === "sad") return;
+  const prev = mascot.dataset.mood;
+  setMood("giggle", 900);
+  if (prev === "happy" || prev === "cheer") setTimeout(() => setMood(prev, 0), 900);
 });
 
 // ---- Modals ---------------------------------------------------------------
@@ -257,23 +342,26 @@ function openStats() {
   const done = !!state && state.status !== "playing" && !!revealed;
   const msg = document.getElementById("result-msg");
   if (done && state.status === "won") msg.textContent = `🫘 You found the bean: ${revealed.toUpperCase()}`;
-  else if (done) msg.textContent = `The bean was ${revealed.toUpperCase()}`;
+  else if (done) msg.textContent = `Has-bean! Today's bean was ${revealed.toUpperCase()}`;
   else msg.textContent = "";
   document.getElementById("share-btn").classList.toggle("hidden", !done);
-  document.getElementById("countdown").textContent = done ? "A new bean is coming soon!" : "";
+  document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 6am (Sydney)" : "";
 
   statsModal.classList.remove("hidden");
 }
 
 document.getElementById("share-btn").addEventListener("click", async () => {
-  const EMOJI = { correct: "🟩", present: "🟨", absent: "⬛" };
+  // Green/yellow keep the familiar colour-blind-friendly contrast; brown squares read as beans.
+  const EMOJI = { correct: "🟩", present: "🟨", absent: "🟫" };
   const score = state.status === "won" ? state.guesses.length : "X";
   const lines = [];
   for (const g of state.guesses) lines.push((await puzzle.score(g)).map((s) => EMOJI[s]).join(""));
-  const text = `Beandle ${score}/${MAX_GUESSES} 🫘\n\n${lines.join("\n")}`;
+  const tagline = state.status === "won" ? WIN_MESSAGES[state.guesses.length - 1] : "Has-bean!";
+  const url = location.origin + location.pathname;
+  const text = `🫘 Beandle ${score}/${MAX_GUESSES} · ${tagline}\n\n${lines.join("\n")}\n\n${url}`;
   try {
     await navigator.clipboard.writeText(text);
-    toast("Copied results to clipboard");
+    toast("Copied! Go spill the beans 🫘");
   } catch {
     toast("Couldn't copy results");
   }
@@ -310,8 +398,10 @@ async function start() {
   if (state.status === "won") {
     revealed = state.guesses[state.guesses.length - 1];
     rows[state.guesses.length - 1].el.classList.add("win");
+    setMood("happy", 0);
   } else if (state.status === "lost") {
     revealed = await puzzle.reveal();
+    setMood("sad", 0);
   }
   renderCurrent();
   busy = false;

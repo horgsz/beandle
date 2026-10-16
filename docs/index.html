@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#fbf5ea" />
+  <meta name="theme-color" content="#fbf1df" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Beandle — the daily bean word game</title>
@@ -13,7 +13,23 @@
 <body>
   <header>
     <button class="icon-btn" id="help-btn" aria-label="How to play">?</button>
-    <h1>🫘 Beandle</h1>
+    <h1>
+      <button class="mascot" id="mascot" data-mood="idle" aria-label="Poke the bean">
+        <svg viewBox="-4 -6 138 112" aria-hidden="true">
+          <path class="m-body" d="M65 18C50 18 44 4 28 4C12 4 2 20 2 46C2 76 30 98 65 98C100 98 128 76 128 46C128 20 118 4 102 4C86 4 80 18 65 18Z"/>
+          <ellipse class="m-shine" cx="30" cy="28" rx="13" ry="6" transform="rotate(-24 30 28)"/>
+          <ellipse class="m-cheek" cx="32" cy="70" rx="8" ry="5"/>
+          <ellipse class="m-cheek" cx="98" cy="70" rx="8" ry="5"/>
+          <g class="m-eyes"><ellipse cx="47" cy="54" rx="6" ry="8"/><ellipse cx="83" cy="54" rx="6" ry="8"/></g>
+          <g class="m-eyes-happy"><path d="M39 57Q47 45 55 57"/><path d="M75 57Q83 45 91 57"/></g>
+          <path class="m-mouth m-smile" d="M56 70Q65 79 74 70"/>
+          <path class="m-mouth m-grin" d="M52 67Q65 88 78 67Z"/>
+          <ellipse class="m-mouth m-oops" cx="65" cy="75" rx="5" ry="6.5"/>
+          <path class="m-mouth m-sad" d="M56 79Q65 70 74 79"/>
+        </svg>
+      </button>
+      <span>Beandle</span>
+    </h1>
     <button class="icon-btn" id="stats-btn" aria-label="Statistics">📊</button>
   </header>
 
@@ -25,35 +41,35 @@
 
   <div class="modal hidden" id="help-modal" role="dialog" aria-labelledby="help-title">
     <div class="modal-content">
-      <button class="close" data-close>&times;</button>
+      <button class="close" data-close aria-label="Close">&times;</button>
       <h2 id="help-title">How to play</h2>
-      <p>Guess the <strong>bean</strong> in 6 tries. Every answer is a five-letter bean.</p>
-      <p>Each guess must be a valid five-letter word. After each guess the tiles change colour:</p>
+      <p>Guess today's <strong>bean</strong> in 6 tries. Every answer is a real five-letter bean. 🫘</p>
+      <p>Type any five-letter word and press Enter. Each bean changes colour to show how close you are:</p>
       <ul>
-        <li><span class="mini correct">B</span> is in the word and in the right spot.</li>
-        <li><span class="mini present">E</span> is in the word but in the wrong spot.</li>
-        <li><span class="mini absent">A</span> is not in the word at all.</li>
+        <li><span class="mini correct">B</span> Right letter, right spot.</li>
+        <li><span class="mini present">E</span> In the bean, wrong spot.</li>
+        <li><span class="mini absent">A</span> Not in the bean at all.</li>
       </ul>
-      <p>Whenever a new bean is planted you get a fresh game.</p>
+      <p>A fresh bean sprouts every morning at 6am Sydney time. No spilling the beans to your friends! 🤫</p>
     </div>
   </div>
 
   <div class="modal hidden" id="stats-modal" role="dialog" aria-labelledby="stats-title">
     <div class="modal-content">
-      <button class="close" data-close>&times;</button>
-      <h2 id="stats-title">Statistics</h2>
+      <button class="close" data-close aria-label="Close">&times;</button>
+      <h2 id="stats-title">Bean counter</h2>
       <div id="result-msg"></div>
       <div class="stats">
         <div><span id="stat-played">0</span>Played</div>
         <div><span id="stat-win">0</span>Win %</div>
-        <div><span id="stat-streak">0</span>Current streak</div>
-        <div><span id="stat-max">0</span>Max streak</div>
+        <div><span id="stat-streak">0</span>Streak</div>
+        <div><span id="stat-max">0</span>Best streak</div>
       </div>
-      <h3>Guess distribution</h3>
+      <h3>Guesses</h3>
       <div id="distribution"></div>
       <div class="footer-row">
         <div id="countdown"></div>
-        <button id="share-btn" class="hidden">Share</button>
+        <button id="share-btn" class="hidden">Spill the beans</button>
       </div>
     </div>
   </div>
