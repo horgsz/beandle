@@ -267,6 +267,7 @@ function finishGame(won, guessCount) {
     }
     save(STATS_KEY, stats);
   }
+  prepareShare();
   setTimeout(openStats, 1800);
 }
 
@@ -312,7 +313,7 @@ function closeModals() {
 
 document.querySelectorAll(".modal").forEach((modal) => {
   modal.addEventListener("click", (e) => {
-    if (e.target === modal || e.target.hasAttribute("data-close")) closeModals();
+    if (e.target === modal || e.target.closest("[data-close]")) modal.classList.add("hidden");
   });
 });
 
@@ -343,11 +344,16 @@ function openStats() {
   else msg.textContent = "";
   document.getElementById("share-btn").classList.toggle("hidden", !done);
   document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 5am (Sydney)" : "";
+  if (done && !shareText) prepareShare();
 
   statsModal.classList.remove("hidden");
 }
 
-document.getElementById("share-btn").addEventListener("click", async () => {
+// ---- Sharing --------------------------------------------------------------
+
+let shareText = null;
+
+async function buildShareText() {
   // Green/yellow keep the familiar colour-blind-friendly contrast; brown squares read as beans.
   const EMOJI = { correct: "🟩", present: "🟨", absent: "🟫" };
   const score = state.status === "won" ? state.guesses.length : "X";
@@ -355,13 +361,82 @@ document.getElementById("share-btn").addEventListener("click", async () => {
   for (const g of state.guesses) lines.push((await puzzle.score(g)).map((s) => EMOJI[s]).join(""));
   const tagline = state.status === "won" ? WIN_MESSAGES[state.guesses.length - 1] : "Has-bean!";
   const url = location.origin + location.pathname;
-  const text = `🫘 Beandle ${score}/${MAX_GUESSES} · ${tagline}\n\n${lines.join("\n")}\n\n${url}`;
-  try {
-    await navigator.clipboard.writeText(text);
-    toast("Copied! Go spill the beans 🫘");
-  } catch {
-    toast("Couldn't copy results");
+  return `🫘 Beandle ${score}/${MAX_GUESSES} · ${tagline}\n\n${lines.join("\n")}\n\n${url}`;
+}
+
+/** Build the share text ahead of time, so a tap copies straight away (iOS Safari needs that). */
+async function prepareShare() {
+  try { shareText = await buildShareText(); } catch { /* built on demand instead */ }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch { /* fall back below */ }
   }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copy the share text. iOS browsers (Safari, Brave, Chrome — all WebKit) only allow a
+ * clipboard write that starts during the tap, so never await anything before starting it.
+ */
+async function copyShare() {
+  if (shareText) return { text: shareText, ok: await copyText(shareText) };
+  const textPromise = buildShareText();
+  if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+    try {
+      // Handing WebKit a promise keeps the write tied to the tap while the text is built.
+      await navigator.clipboard.write([
+        new ClipboardItem({ "text/plain": textPromise.then((t) => new Blob([t], { type: "text/plain" })) }),
+      ]);
+      return { text: await textPromise, ok: true };
+    } catch { /* fall back below */ }
+  }
+  const text = await textPromise;
+  return { text, ok: await copyText(text) };
+}
+
+const copiedModal = document.getElementById("copied-modal");
+
+function showCopied(text, ok) {
+  copiedModal.classList.toggle("failed", !ok);
+  document.getElementById("copied-title").textContent = ok ? "Copied!" : "Copy your beans";
+  document.getElementById("copied-sub").textContent = ok
+    ? "Your result is on the clipboard. Paste it into the group chat 🫘"
+    : "Couldn't copy automatically. Press and hold the text below, then choose Copy.";
+  const preview = document.getElementById("copied-preview");
+  preview.value = text;
+  preview.rows = text.split("\n").length;
+  const anim = copiedModal.querySelector(".clip-anim");
+  anim.classList.remove("play");
+  void anim.getBoundingClientRect();
+  anim.classList.add("play");
+  copiedModal.classList.remove("hidden");
+  if (!ok) { preview.focus(); preview.select(); }
+  else document.getElementById("copied-ok").focus();
+}
+
+document.getElementById("share-btn").addEventListener("click", async () => {
+  const { text, ok } = await copyShare();
+  shareText = text;
+  showCopied(text, ok);
+  if (ok) setMood("giggle", 900);
 });
 
 // ---- Startup --------------------------------------------------------------

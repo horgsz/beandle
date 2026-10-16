@@ -74,6 +74,32 @@
     </div>
   </div>
 
+  <div class="modal hidden" id="copied-modal" role="dialog" aria-labelledby="copied-title" aria-describedby="copied-sub">
+    <div class="modal-content copied-content">
+      <button class="close" data-close aria-label="Close">&times;</button>
+      <svg class="clip-anim" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><path id="cb" d="M65 18C50 18 44 4 28 4C12 4 2 20 2 46C2 76 30 98 65 98C100 98 128 76 128 46C128 20 118 4 102 4C86 4 80 18 65 18Z"/></defs>
+        <rect class="clip-board" x="20" y="16" width="80" height="96" rx="12"/>
+        <rect class="clip-paper" x="30" y="28" width="60" height="74" rx="6"/>
+        <rect class="clip-top" x="42" y="8" width="36" height="16" rx="6"/>
+        <g class="drop" style="--d:0.10s"><use href="#cb" fill="#4c8a35" transform="translate(35 38) scale(.13)"/></g>
+        <g class="drop" style="--d:0.18s"><use href="#cb" fill="#dc9d1c" transform="translate(52 38) scale(.13)"/></g>
+        <g class="drop" style="--d:0.26s"><use href="#cb" fill="#8b7766" transform="translate(69 38) scale(.13)"/></g>
+        <g class="drop" style="--d:0.36s"><use href="#cb" fill="#dc9d1c" transform="translate(35 57) scale(.13)"/></g>
+        <g class="drop" style="--d:0.44s"><use href="#cb" fill="#4c8a35" transform="translate(52 57) scale(.13)"/></g>
+        <g class="drop" style="--d:0.52s"><use href="#cb" fill="#4c8a35" transform="translate(69 57) scale(.13)"/></g>
+        <g class="drop" style="--d:0.62s"><use href="#cb" fill="#4c8a35" transform="translate(35 76) scale(.13)"/></g>
+        <g class="drop" style="--d:0.70s"><use href="#cb" fill="#4c8a35" transform="translate(52 76) scale(.13)"/></g>
+        <g class="drop" style="--d:0.78s"><use href="#cb" fill="#4c8a35" transform="translate(69 76) scale(.13)"/></g>
+        <g class="clip-check"><circle cx="94" cy="94" r="18"/><path d="M85 94l6 6 12-13"/></g>
+      </svg>
+      <h2 id="copied-title">Copied!</h2>
+      <p id="copied-sub">Your result is on the clipboard. Paste it into the group chat 🫘</p>
+      <textarea id="copied-preview" readonly rows="10" aria-label="Your shareable result"></textarea>
+      <button id="copied-ok" data-close>Got it 🫘</button>
+    </div>
+  </div>
+
   <script type="module" src="game.js"></script>
 </body>
 </html>
