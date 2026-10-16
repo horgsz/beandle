@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumber } from "../scripts/schedule.mjs";
+import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumber, START_DATE } from "../scripts/schedule.mjs";
 
 const SEED = "test-seed-0123456789abcdef";
 const WORDS = "apple, crane, slate, trace, flint\nghost plumb river stone quilt";
@@ -43,7 +43,7 @@ test("parseWords normalises and rejects bad entries without echoing them", () =>
 
 test("word selection is deterministic and cycles through every word before repeating", () => {
   const list = parseWords(WORDS);
-  const start = dayNumber("2026-03-10") - (dayNumber("2026-03-10") % list.length);
+  const start = dayNumber(START_DATE);
   const cycle = [];
   for (let i = 0; i < list.length; i++) {
     const date = new Date((start + i) * 86400000).toISOString().slice(0, 10);
@@ -87,4 +87,18 @@ test("choosePuzzle: schedule, override, and validation", () => {
 
   assert.throws(() => choosePuzzle({ words: WORDS, seed: "", now }), /BEANDLE_SEED/);
   assert.throws(() => choosePuzzle({ words: WORDS, seed: SEED, override: "toolong", now }), /BEANDLE_OVERRIDE/);
+});
+
+test("from launch day, every window of list-length days has no repeats and no back-to-back words", () => {
+  const list = parseWords(WORDS);
+  const n = list.length;
+  for (const seed of [SEED, "another-seed-abcdef0123", "third-seed-0123456789abc"]) {
+    const seq = Array.from({ length: n * 6 }, (_, i) => {
+      const d = new Date(`${START_DATE}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + i);
+      return wordForDate(list, seed, d.toISOString().slice(0, 10));
+    });
+    for (let c = 0; c < 6; c++) assert.equal(new Set(seq.slice(c * n, (c + 1) * n)).size, n);
+    for (let i = 1; i < seq.length; i++) assert.notEqual(seq[i], seq[i - 1]);
+  }
 });

@@ -57,7 +57,7 @@ node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))
 
 If you keep the list in a file, call it `beans.txt` (it's git-ignored) and use `gh secret set BEANDLE_WORDS < beans.txt`.
 
-Words are used in a shuffled order. Every word comes up once before any repeats, then the list is reshuffled. Changing the list or the seed changes the order from then on.
+Words are used in a shuffled order starting on launch day (`START_DATE` in `scripts/schedule.mjs`). Every word comes up once before any repeats, then the list is reshuffled (never the same word two days running). Changing the list or the seed changes the order from then on.
 
 ### 3. Turn on GitHub Pages
 
