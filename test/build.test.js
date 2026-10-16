@@ -20,6 +20,7 @@ test("the built site publishes only the minified bundle and puzzle files, never 
       BEANDLE_SEED: "build-test-seed-0123456789",
       BEANDLE_OVERRIDE: ANSWER,
       BEANDLE_FACTS: JSON.stringify({ PINTO: FACT, crane: "not today" }),
+      BEANDLE_NOW: "2026-10-17T05:00:00Z", // 4pm Sydney: no preload
     },
     stdio: "pipe",
   });
@@ -44,4 +45,30 @@ test("the built site publishes only the minified bundle and puzzle files, never 
   assert.ok(await p.score("crane"));
   assert.equal(await p.fact(ANSWER), FACT);
   assert.ok(Number.isInteger(p.day));
+});
+
+test("morning builds also ship tomorrow's puzzle, locked until 12pm Sydney", async () => {
+  execFileSync(process.execPath, [join(root, "scripts/build-site.mjs")], {
+    cwd: root,
+    env: {
+      ...process.env,
+      BEANDLE_WORDS: "pinto, crane, ghost",
+      BEANDLE_SEED: "build-test-seed-0123456789",
+      BEANDLE_OVERRIDE: "",
+      BEANDLE_FACTS: "",
+      BEANDLE_NOW: "2026-10-17T00:07:00Z", // 11:07am Sydney on the 17th
+    },
+    stdio: "pipe",
+  });
+  assert.deepEqual((await readdir(site)).sort(), ["app.js", "index.html", "next.bin", "next.json", "puzzle.bin", "puzzle.json", "style.css"]);
+  const cur = JSON.parse(await readFile(join(site, "puzzle.json"), "utf8"));
+  const next = JSON.parse(await readFile(join(site, "next.json"), "utf8"));
+  assert.equal(next.liveAt, "2026-10-17T01:00:00.000Z");
+  assert.equal(next.d, cur.d + 1);
+  assert.notEqual(next.id, cur.id);
+  for (const w of ["pinto", "crane", "ghost"]) assert.ok(!JSON.stringify(next).includes(w));
+  const p = await openPuzzle(next, new Uint8Array(await readFile(join(site, "next.bin"))));
+  const word = await p.reveal();
+  assert.ok(["pinto", "crane", "ghost"].includes(word));
+  assert.deepEqual(await p.score(word), Array(5).fill("correct"));
 });

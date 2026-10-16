@@ -1,11 +1,32 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumber, START_DATE, eventDay, EVENT_DAYS } from "../scripts/schedule.mjs";
+import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumber, START_DATE, eventDay, EVENT_DAYS, rolloverInstant, upcoming } from "../scripts/schedule.mjs";
 
 test("event days count from launch day", () => {
   assert.equal(eventDay(START_DATE), 1);
   assert.equal(eventDay("2026-10-24"), EVENT_DAYS);
   assert.equal(choosePuzzle({ words: "apple crane", seed: "test-seed-0123456789abcdef", now: new Date("2026-10-18T03:00:00Z") }).day, 3);
+});
+
+test("the new bean goes live at exactly 12:00 Sydney, in summer and winter", () => {
+  assert.equal(rolloverInstant("2026-10-17").toISOString(), "2026-10-17T01:00:00.000Z"); // AEDT
+  assert.equal(rolloverInstant("2026-07-15").toISOString(), "2026-07-15T02:00:00.000Z"); // AEST
+  assert.equal(rolloverInstant("2026-04-05").toISOString(), "2026-04-05T02:00:00.000Z"); // DST ends that morning
+  assert.equal(rolloverInstant("2026-10-04").toISOString(), "2026-10-04T01:00:00.000Z"); // DST starts that morning
+});
+
+test("tomorrow's puzzle is preloaded only in the 3 hours before noon", () => {
+  // AEDT: noon on the 17th = 01:00 UTC on the 17th
+  assert.equal(upcoming(new Date("2026-10-16T21:59:00Z")), null); // 08:59 — too early
+  for (const t of ["2026-10-16T23:07:00Z", "2026-10-16T23:37:00Z", "2026-10-17T00:07:00Z", "2026-10-17T00:37:00Z"]) {
+    const up = upcoming(new Date(t)); // 10:07–11:37 AEDT
+    assert.equal(up.date, "2026-10-17");
+    assert.equal(up.liveAt.toISOString(), "2026-10-17T01:00:00.000Z");
+  }
+  assert.equal(upcoming(new Date("2026-10-17T01:07:00Z")), null); // 12:07 — already live
+  // AEST: noon on 15 Jul = 02:00 UTC
+  assert.equal(upcoming(new Date("2026-07-15T01:37:00Z")).date, "2026-07-15");
+  assert.equal(upcoming(new Date("2026-07-15T02:41:00Z")), null);
 });
 
 const SEED = "test-seed-0123456789abcdef";

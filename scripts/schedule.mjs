@@ -76,6 +76,34 @@ export function eventDay(date) {
   return dayNumber(date) - dayNumber(START_DATE) + 1;
 }
 
+/** The exact UTC instant of ROLLOVER_HOUR:00 Sydney time on `date` (handles AEDT/AEST). */
+export function rolloverInstant(date) {
+  const [y, m, d] = date.split("-").map(Number);
+  for (const offset of [11, 10]) {
+    const t = new Date(Date.UTC(y, m - 1, d, ROLLOVER_HOUR - offset));
+    const p = sydneyParts(t);
+    if (p.date === date && p.hour === ROLLOVER_HOUR) return t;
+  }
+  throw new Error(`No ${ROLLOVER_HOUR}:00 in Sydney on ${date}`);
+}
+
+/** How long before the rollover the next puzzle is published (locked until rollover). */
+export const PRELOAD_HOURS = 3;
+
+/**
+ * The next puzzle date and the instant it goes live, if that's within PRELOAD_HOURS of `now`.
+ * Morning builds ship it so the site can switch exactly at the rollover, without depending on
+ * a scheduled run landing on time.
+ */
+export function upcoming(now = new Date()) {
+  const d = new Date(`${puzzleDate(now)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  const date = d.toISOString().slice(0, 10);
+  const liveAt = rolloverInstant(date);
+  const msAhead = liveAt - now;
+  return msAhead > 0 && msAhead <= PRELOAD_HOURS * 3600000 ? { date, liveAt } : null;
+}
+
 /**
  * Word for a puzzle date. From START_DATE the words follow one seeded shuffle, repeated
  * forever, so every word comes back exactly every list-length days and any run of that

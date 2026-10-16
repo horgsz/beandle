@@ -344,7 +344,7 @@ function openStats() {
   else msg.textContent = "";
   document.getElementById("share-btn").classList.toggle("hidden", !done);
   document.getElementById("send-btn").classList.toggle("hidden", !done || !canSend());
-  document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 12pm (Sydney)" : "";
+  document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 12pm sharp (Sydney)" : "";
   const dayLabel = document.getElementById("day-label");
   dayLabel.textContent = dayName();
   dayLabel.classList.toggle("hidden", !dayName());
@@ -609,17 +609,19 @@ document.getElementById("bowl-share").addEventListener("click", async () => {
 
 // ---- Startup --------------------------------------------------------------
 
-async function fetchMeta() {
-  const res = await fetch("puzzle.json", { cache: "no-store" });
+async function fetchMeta(name) {
+  const res = await fetch(`${name}.json`, { cache: "no-store" });
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-/** Fetch puzzle.json and its matching feedback table (retrying if a deploy lands in between). */
-async function fetchPuzzle() {
+/** Fetch `name`.json and its matching .bin table (retrying if a deploy lands in between). */
+async function fetchPair(name) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const meta = await fetchMeta();
-    const res = await fetch(`puzzle.bin?${meta.h}`, { cache: "no-store" });
+    const meta = await fetchMeta(name);
+    if (!meta) return null;
+    const res = await fetch(`${name}.bin?${meta.h}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const table = new Uint8Array(await res.arrayBuffer());
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", table));
@@ -629,18 +631,55 @@ async function fetchPuzzle() {
   throw new Error("Puzzle files don't match");
 }
 
+/**
+ * The puzzle to play right now. Morning builds also ship tomorrow's puzzle as next.json with
+ * a `liveAt` time (12pm Sydney); once that time passes we switch to it, even before the next
+ * deploy lands. Returns { meta, table, switchAt } where switchAt is when to switch, if pending.
+ */
+async function fetchPuzzle() {
+  let next = null;
+  try { next = await fetchPair("next"); } catch { /* fine: play today's */ }
+  const liveAt = next ? Date.parse(next.meta.liveAt) : NaN;
+  if (next && Date.now() >= liveAt) return { ...next, switchAt: null };
+  const current = await fetchPair("puzzle");
+  if (!current) throw new Error("No puzzle");
+  return { ...current, switchAt: next && liveAt > Date.now() ? liveAt : null };
+}
+
+/** Id of the puzzle that should be showing now, without downloading the tables. */
+async function expectedId() {
+  const next = await fetchMeta("next").catch(() => null);
+  if (next && Date.now() >= Date.parse(next.liveAt)) return next.id;
+  const current = await fetchMeta("puzzle");
+  return current && current.id;
+}
+
+let switchPending = false;
+
+function scheduleSwitch(at) {
+  const wait = at - Date.now();
+  if (wait > 24 * 3600000) return;
+  setTimeout(() => {
+    switchPending = true;
+    if (document.visibilityState === "visible") location.reload();
+  }, Math.max(0, wait) + 500);
+}
+
 async function start() {
   if (!isSupported()) {
     toast("Beandle needs to be served over http(s) — see the README", 0);
     return;
   }
+  let switchAt = null;
   try {
-    const { meta, table } = await fetchPuzzle();
-    puzzle = await openPuzzle(meta, table);
+    const loaded = await fetchPuzzle();
+    switchAt = loaded.switchAt;
+    puzzle = await openPuzzle(loaded.meta, loaded.table);
   } catch {
     toast("Couldn't load today's bean. Try refreshing.", 0);
     return;
   }
+  if (switchAt) scheduleSwitch(switchAt);
 
   const saved = load(STATE_KEY, null);
   state = saved && saved.puzzleId === puzzle.id
@@ -685,9 +724,10 @@ async function start() {
   // If the word changes while the tab is open, start the new game when the player comes back.
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState !== "visible" || busy) return;
+    if (switchPending) { location.reload(); return; }
     try {
-      const latest = await fetchMeta();
-      if (latest.id !== puzzle.id) location.reload();
+      const id = await expectedId();
+      if (id && id !== puzzle.id) location.reload();
     } catch {
       /* offline; keep playing */
     }

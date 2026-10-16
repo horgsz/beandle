@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { build } from "esbuild";
 import { sealPuzzle, openPuzzle } from "../docs/beanbox.js";
 import { VALID_GUESSES } from "../docs/words.js";
-import { choosePuzzle } from "./schedule.mjs";
+import { choosePuzzle, upcoming } from "./schedule.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const docs = join(root, "docs");
@@ -27,14 +27,21 @@ function fail(msg) {
   process.exit(1);
 }
 
+const now = process.env.BEANDLE_NOW ? new Date(process.env.BEANDLE_NOW) : new Date();
+const secrets = {
+  words: process.env.BEANDLE_WORDS,
+  seed: process.env.BEANDLE_SEED,
+  override: process.env.BEANDLE_OVERRIDE,
+};
+
 let chosen;
+let next = null;
 try {
-  chosen = choosePuzzle({
-    words: process.env.BEANDLE_WORDS,
-    seed: process.env.BEANDLE_SEED,
-    override: process.env.BEANDLE_OVERRIDE,
-    now: process.env.BEANDLE_NOW ? new Date(process.env.BEANDLE_NOW) : new Date(),
-  });
+  chosen = choosePuzzle({ ...secrets, now });
+  // In the hours before the rollover, also ship tomorrow's puzzle (locked until it goes live),
+  // so the site switches exactly on time even if a scheduled run is late.
+  const up = upcoming(now);
+  if (up) next = { ...choosePuzzle({ ...secrets, now: up.liveAt }), liveAt: up.liveAt.toISOString() };
 } catch (e) {
   fail(e.message);
 }
@@ -54,15 +61,21 @@ if (process.env.BEANDLE_FACTS) {
     console.log("⚠ BEANDLE_FACTS isn't valid JSON; using general bean facts instead");
   }
 }
-const fact = facts[chosen.word] || null;
+/** Seal one puzzle and self-check it. The word is dropped from `pick` afterwards. */
+async function seal(pick) {
+  const fact = facts[pick.word] || null;
+  const sealed = await sealPuzzle(pick.word, VALID_GUESSES, { id: pick.id, day: pick.day, fact });
+  const opened = await openPuzzle(sealed.meta, sealed.table);
+  const check = await opened.score(pick.word);
+  const revealOk = (await opened.reveal()) === pick.word;
+  const factOk = !fact || (await opened.fact(pick.word)) === fact;
+  pick.word = null;
+  if (!check || !check.every((s) => s === "correct") || !revealOk || !factOk) fail("Self-check failed");
+  return { ...sealed, hasFact: !!fact };
+}
 
-const { meta, table } = await sealPuzzle(chosen.word, VALID_GUESSES, { id: chosen.id, day: chosen.day, fact });
-const opened = await openPuzzle(meta, table);
-const check = await opened.score(chosen.word);
-const revealOk = (await opened.reveal()) === chosen.word;
-const factOk = !fact || (await opened.fact(chosen.word)) === fact;
-chosen.word = null;
-if (!check || !check.every((s) => s === "correct") || !revealOk || !factOk) fail("Self-check failed");
+const current = await seal(chosen);
+const nextSealed = next ? await seal(next) : null;
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
@@ -82,7 +95,12 @@ const html = await readFile(join(docs, "index.html"), "utf8");
 if (!html.includes('src="game.js"')) fail("index.html no longer loads game.js");
 await writeFile(join(out, "index.html"), html.replace('src="game.js"', 'src="app.js"'));
 await copyFile(join(docs, "style.css"), join(out, "style.css"));
-await writeFile(join(out, "puzzle.json"), `${JSON.stringify(meta)}\n`);
-await writeFile(join(out, "puzzle.bin"), table);
+await writeFile(join(out, "puzzle.json"), `${JSON.stringify(current.meta)}\n`);
+await writeFile(join(out, "puzzle.bin"), current.table);
+if (nextSealed) {
+  await writeFile(join(out, "next.json"), `${JSON.stringify({ ...nextSealed.meta, liveAt: next.liveAt })}\n`);
+  await writeFile(join(out, "next.bin"), nextSealed.table);
+}
 
-console.log(`✔ Built _site for puzzle day ${chosen.date}, bean ${chosen.day} (${chosen.source}${fact ? ", with fact" : ""})`);
+console.log(`✔ Built _site for puzzle day ${chosen.date}, bean ${chosen.day} (${chosen.source}${current.hasFact ? ", with fact" : ""})`);
+if (next) console.log(`✔ Preloaded bean ${next.day} (${next.date}), live at ${next.liveAt}${nextSealed.hasFact ? ", with fact" : ""}`);

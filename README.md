@@ -73,10 +73,12 @@ The site goes live at **https://horgsz.github.io/beandle/**.
 
 `.github/workflows/deploy.yml` runs:
 
-- **Every day on a schedule**, at 01:05 UTC (12:05pm AEDT), 02:05 UTC (12:05pm AEST), and 04:41 UTC as a fallback. GitHub's cron is UTC-only and runs can be late, so it runs at all three times instead of relying on one exact hour.
+- **Several times a day on a schedule**: 23:07, 23:37, 00:07, 00:37, 01:07 and 01:37 UTC (about 10am–12:30pm Sydney), plus 02:41 and 03:41 UTC. GitHub's cron is UTC-only and runs are often late, so there are several tries, avoiding the busy top of the hour.
 - **On every push to `main`**, and **on demand** (Run workflow / `gh workflow run deploy.yml`).
 
 Each run works out the **puzzle day**: today's Sydney date if it's 12pm (midday) or later in Sydney, otherwise yesterday's. It then picks that day's word from the seeded shuffle and seals it into `puzzle.json` inside the Pages artifact. Nothing gets committed.
+
+**The new bean goes live at exactly 12:00pm Sydney.** Runs in the 3 hours before noon also publish the next day's puzzle as `next.json`/`next.bin`, sealed like any other puzzle and tagged with its go-live time. The game switches to it at 12:00 on the dot: on load if it's past noon, or by itself if the page is already open. So the bean is ready by 12pm even if a run is delayed. Afternoon runs drop the preloaded copy once it's live.
 
 This is stateless, so extra or late runs are harmless. Every run on the same puzzle day produces the same puzzle id, so players' progress is kept. A new day gets a new id, so everyone gets a fresh board. Daylight saving is handled by checking actual Sydney time.
 
