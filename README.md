@@ -6,20 +6,20 @@ A Wordle clone where every answer is a five-letter **bean**. A new bean is plant
 - On-screen keyboard plus physical keyboard (letters, Enter, Backspace)
 - Built for phones: fits portrait screens without scrolling, large tap targets, safe-area aware, no double-tap zoom
 - Progress and stats are saved per puzzle in the browser; results can be shared as an emoji grid
-- Static site with no backend. The answer list lives only in GitHub secrets, and each day's word ships only as an obfuscated `puzzle.json` generated at deploy time
+- Static site with no backend. The answer list lives only in GitHub secrets, and the browser never receives the day's word to score with; it gets a scrambled feedback table generated at deploy time
 
 ## Repo layout
 
 | Path | Purpose |
 | --- | --- |
-| `docs/` | The website (`index.html`, `style.css`, `game.js`, `words.js`, `beanbox.js`) |
-| `docs/words.js` | Words accepted as guesses. The day's answer is always accepted even if it isn't listed |
-| `docs/beanbox.js` | Seals and opens the puzzle word (see [How the word is hidden](#how-the-word-is-hidden)) |
+| `docs/` | Website source (`index.html`, `style.css`, `game.js`, `beanbox.js`); the build bundles it into one minified `app.js` |
+| `docs/words.js` | Words accepted as guesses (used at build time only, never published). The day's answer is always accepted |
+| `docs/beanbox.js` | Builds and reads the feedback table and sealed answer (see [How the word is hidden](#how-the-word-is-hidden)) |
 | `.github/workflows/deploy.yml` | Builds the site with the day's puzzle and deploys it to Pages |
 | `scripts/build-site.mjs` | Used by the workflow: picks the day's word from the secrets and writes `_site/` |
 | `scripts/schedule.mjs` | Puzzle-day and word-selection logic (Sydney 5am rollover, seeded shuffle) |
 | `scripts/set-word.mjs` | Manual word setting, either locally or as a live override |
-| `test/` | `npm test` (Node's built-in test runner; no dependencies) |
+| `test/` | `npm test` (Node's built-in test runner; run `npm install` first) |
 
 ## Setup
 
@@ -102,10 +102,10 @@ This deletes the secret and redeploys, back to the scheduled word. The manual eq
 
 ## Playing and testing locally
 
-The game must be served over http(s), because it uses Web Crypto and `fetch`. Opening `index.html` from disk won't work.
+Run `npm install` once (it installs esbuild, used to bundle the site). The game must be served over http(s), because it uses Web Crypto and `fetch`. Opening `index.html` from disk won't work.
 
 ```sh
-node scripts/set-word.mjs        # prompts for a word; writes docs/puzzle.json (git-ignored)
+node scripts/set-word.mjs        # prompts for a word; writes docs/puzzle.json + docs/puzzle.bin (git-ignored)
 npm run serve                    # = python3 -m http.server 8000 --directory docs
 ```
 
@@ -122,14 +122,25 @@ Run the tests with `npm test`.
 
 ## How the word is hidden
 
-The answer list and seed exist only as GitHub secrets. They never appear in the repo, the built site or the workflow logs. The repo doesn't even hold the obfuscated word; that's generated inside the deploy job.
+The answer list and seed exist only as GitHub secrets. They never appear in the repo, the built site or the workflow logs. Each day's puzzle files are generated inside the deploy job and never committed.
 
-The day's word itself is **obfuscated, not secret**. The browser has to recover it to score guesses, so a determined player with dev tools could dig it out. It does stop casual peeking: the word doesn't appear in the served files, network responses, `localStorage`, the console or the page until the game ends, on a win or after the 6th miss.
+**The browser never gets the answer in order to score guesses.** Each build publishes:
 
-`docs/beanbox.js` seals the word in layers:
+- **`puzzle.bin`, a feedback table:** one 6-byte entry for every allowed guess word (about 16,000) plus the answer.
+  - Each entry's key and mask come from a slow hash of the guess word: PBKDF2-SHA-256 with 40,000 rounds, salted per build and per puzzle, plus a pepper stored scrambled in the code.
+  - The stored byte is that guess's green/yellow/grey pattern, XOR-masked.
+  - Entries are sorted by key, so the table has no word order and no readable "all green" entry.
+  - To score a guess, the game hashes it and looks it up. No entry means it isn't an allowed word.
+- **A sealed answer in `puzzle.json`, used only to show the word after a 6th miss:**
+  - The letters are XOR-masked and scattered among random bytes.
+  - That block is encrypted with AES-256-GCM, bound to the puzzle id.
+  - The key comes from a much slower PBKDF2 (400,000 rounds) over split inputs: the pepper, a per-build key fragment, the puzzle id and a digest of the table.
+- **`app.js`:** the game code, bundled and minified with esbuild. The readable source and the plain guess-word list aren't published.
 
-1. **Scatter and mask:** the 5 letters are each XOR-masked and hidden at derived positions among 32 random bytes.
-2. **Encrypt:** that block is encrypted with AES-256-GCM. The encryption is authenticated against the puzzle id, so a tampered or mismatched puzzle won't open.
-3. **Split key:** the AES key is derived with PBKDF2-SHA-256 (120k iterations, random salt) from three separate pieces: a pepper stored scrambled inside `beanbox.js`, a random per-build key fragment, and the puzzle id.
+The puzzle id is an HMAC of the puzzle date (plus the override word, if any) keyed with `BEANDLE_SEED`. It tells you nothing about the word.
 
-The puzzle id is an HMAC of the puzzle date (plus the override word, if any) keyed with `BEANDLE_SEED`. It tells you nothing about the word, and it can't be brute-forced the way a plain hash of a 5-letter word could. The game decrypts only inside its scoring function, into short-lived buffers that are wiped straight away.
+**Limits:** this is obfuscation, not secrecy. Everything needed to play runs in the browser, so someone willing to reverse-engineer the minified code can still get the word. They'd have to either:
+- trigger the loss reveal, or
+- hash likely bean names against the table.
+
+That's real effort, compared with the old "two lines in the console". Making the word truly secret would need a small server to score guesses, such as a Cloudflare Worker.

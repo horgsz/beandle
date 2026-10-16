@@ -1,4 +1,3 @@
-import { VALID_GUESSES } from "./words.js";
 import { openPuzzle, isSupported } from "./beanbox.js";
 
 const WORD_LENGTH = 5;
@@ -7,8 +6,6 @@ const FLIP_MS = 250;
 const STATE_KEY = "beandle-state";
 const STATS_KEY = "beandle-stats";
 const HELP_KEY = "beandle-seen-help";
-
-const validWords = new Set(VALID_GUESSES);
 
 // Kidney-bean outline: bigger left lobe, dip in the top. Stretched to fill each tile.
 const BEAN_PATH = "M65 18C50 18 44 4 28 4C12 4 2 20 2 46C2 76 30 98 65 98C100 98 128 76 128 46C128 20 118 4 102 4C86 4 80 18 65 18Z";
@@ -217,9 +214,9 @@ async function submit() {
 
   busy = true;
   const guess = current;
+  // The table covers every allowed word (plus the answer); anything else scores null.
   const result = await puzzle.score(guess);
-  // The puzzle word is always accepted, even if it's missing from the guess list.
-  if (!validWords.has(guess) && !isWin(result)) {
+  if (!result) {
     busy = false;
     toast("Never bean heard of it");
     shake();
@@ -369,10 +366,24 @@ document.getElementById("share-btn").addEventListener("click", async () => {
 
 // ---- Startup --------------------------------------------------------------
 
-async function fetchPuzzle() {
+async function fetchMeta() {
   const res = await fetch("puzzle.json", { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+/** Fetch puzzle.json and its matching feedback table (retrying if a deploy lands in between). */
+async function fetchPuzzle() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const meta = await fetchMeta();
+    const res = await fetch(`puzzle.bin?${meta.h}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const table = new Uint8Array(await res.arrayBuffer());
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", table));
+    const hex = Array.from(digest.subarray(0, 8), (b) => b.toString(16).padStart(2, "0")).join("");
+    if (hex === meta.h) return { meta, table };
+  }
+  throw new Error("Puzzle files don't match");
 }
 
 async function start() {
@@ -381,7 +392,8 @@ async function start() {
     return;
   }
   try {
-    puzzle = await openPuzzle(await fetchPuzzle());
+    const { meta, table } = await fetchPuzzle();
+    puzzle = await openPuzzle(meta, table);
   } catch {
     toast("Couldn't load today's bean. Try refreshing.", 0);
     return;
@@ -392,8 +404,12 @@ async function start() {
     ? saved
     : { puzzleId: puzzle.id, guesses: [], status: "playing" };
 
-  for (let r = 0; r < state.guesses.length; r++) {
-    await paintRow(r, state.guesses[r], await puzzle.score(state.guesses[r]), false);
+  const restored = [];
+  for (const g of state.guesses) restored.push(await puzzle.score(g));
+  if (restored.some((r) => !r)) {
+    state = { puzzleId: puzzle.id, guesses: [], status: "playing" };
+  } else {
+    for (let r = 0; r < restored.length; r++) await paintRow(r, state.guesses[r], restored[r], false);
   }
   if (state.status === "won") {
     revealed = state.guesses[state.guesses.length - 1];
@@ -417,7 +433,7 @@ async function start() {
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState !== "visible" || busy) return;
     try {
-      const latest = await fetchPuzzle();
+      const latest = await fetchMeta();
       if (latest.id !== puzzle.id) location.reload();
     } catch {
       /* offline; keep playing */

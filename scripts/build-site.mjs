@@ -1,19 +1,25 @@
 #!/usr/bin/env node
-// Build the GitHub Pages site into _site/ with today's sealed puzzle.
+// Build the GitHub Pages site into _site/ with today's puzzle.
 //
 // Reads secrets from the environment (never printed):
 //   BEANDLE_WORDS     bean answer list (commas, spaces or newlines)
 //   BEANDLE_SEED      random secret seed
 //   BEANDLE_OVERRIDE  optional: force this word instead of the schedule
 // BEANDLE_NOW (ISO timestamp) can be set locally to preview another moment.
+//
+// Output: index.html, style.css, a single minified app.js, puzzle.json and puzzle.bin.
+// The readable source and the plain guess-word list are not published.
 
-import { cp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { build } from "esbuild";
 import { sealPuzzle, openPuzzle } from "../docs/beanbox.js";
+import { VALID_GUESSES } from "../docs/words.js";
 import { choosePuzzle } from "./schedule.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const docs = join(root, "docs");
 const out = join(root, "_site");
 
 function fail(msg) {
@@ -33,16 +39,32 @@ try {
   fail(e.message);
 }
 
-const puzzle = await sealPuzzle(chosen.word, { id: chosen.id });
-const check = await (await openPuzzle(puzzle)).score(chosen.word);
+const { meta, table } = await sealPuzzle(chosen.word, VALID_GUESSES, { id: chosen.id });
+const opened = await openPuzzle(meta, table);
+const check = await opened.score(chosen.word);
+const revealOk = (await opened.reveal()) === chosen.word;
 chosen.word = null;
-if (!check.every((s) => s === "correct")) fail("Self-check failed");
+if (!check || !check.every((s) => s === "correct") || !revealOk) fail("Self-check failed");
 
 await rm(out, { recursive: true, force: true });
-await cp(join(root, "docs"), out, {
-  recursive: true,
-  filter: (src) => !src.endsWith("puzzle.json"),
+await mkdir(out, { recursive: true });
+
+await build({
+  entryPoints: [join(docs, "game.js")],
+  bundle: true,
+  minify: true,
+  format: "esm",
+  target: ["es2020"],
+  legalComments: "none",
+  outfile: join(out, "app.js"),
+  logLevel: "warning",
 });
-await writeFile(join(out, "puzzle.json"), `${JSON.stringify(puzzle)}\n`);
+
+const html = await readFile(join(docs, "index.html"), "utf8");
+if (!html.includes('src="game.js"')) fail("index.html no longer loads game.js");
+await writeFile(join(out, "index.html"), html.replace('src="game.js"', 'src="app.js"'));
+await copyFile(join(docs, "style.css"), join(out, "style.css"));
+await writeFile(join(out, "puzzle.json"), `${JSON.stringify(meta)}\n`);
+await writeFile(join(out, "puzzle.bin"), table);
 
 console.log(`✔ Built _site for puzzle day ${chosen.date} (${chosen.source})`);

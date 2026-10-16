@@ -1,20 +1,31 @@
-// Beanbox: seals and opens the puzzle word. Shared by the browser game and scripts/set-word.mjs.
+// Beanbox: hides the puzzle word. Shared by the browser game and the build/set-word scripts.
 //
-// This is obfuscation, not secrecy: the browser must be able to recover the word to score guesses.
-// Layers:
-//   1. The five letters are each XOR-masked and scattered into 32 random bytes; the slot positions
-//      and masks are derived from the puzzle id and key fragment.
-//   2. That block is encrypted with AES-256-GCM, authenticated against the puzzle id.
-//   3. The AES key is derived with PBKDF2 from three separate inputs: a pepper baked into this file
-//      (stored scrambled), a per-puzzle key fragment, and the per-puzzle id. A random salt is also used.
-// The decrypted letters live only in short-lived local buffers, which are zeroed after each use.
+// The browser never gets the answer in order to score guesses. Instead each build ships:
+//
+//   1. A feedback table (puzzle.bin): one 6-byte entry per allowed guess word. The entry's
+//      key and a mask byte come from a slow PBKDF2 hash of the guess word (salted per build
+//      and per puzzle, plus a pepper baked into this file). The stored byte is that guess's
+//      green/yellow/grey pattern XOR the mask. Entries are sorted by key, so the table has no
+//      word order and no readable "all green" entry. To score a guess, hash it and look it up;
+//      a guess with no entry isn't an allowed word.
+//
+//   2. A sealed copy of the answer (in puzzle.json), used only to show the answer after a
+//      loss. The letters are XOR-masked and scattered among random bytes, encrypted with
+//      AES-256-GCM bound to the puzzle id, under a key from a much slower PBKDF2 over split
+//      inputs: the pepper, a per-build key fragment, the puzzle id and a digest of the table.
+//
+// This is still obfuscation, not secrecy: everything needed to play is in the browser.
 
-const VERSION = 1;
+const VERSION = 2;
 const WORD_LENGTH = 5;
 const BLOCK_SIZE = 32;
-const ITERATIONS = 120000;
+const KEY_BYTES = 5;
+const ENTRY_BYTES = KEY_BYTES + 1;
+export const GUESS_ITERATIONS = 40000;
+const REVEAL_ITERATIONS = 400000;
 
 const SCRAMBLED = [149, 162, 155, 249, 149, 191, 215, 46, 231, 216, 194, 23, 49, 153, 202, 16, 96, 88, 22, 100, 1, 123, 230, 115, 136, 135, 46, 90, 23, 177, 11, 25];
+const STATUSES = ["absent", "present", "correct"];
 
 const subtle = globalThis.crypto && globalThis.crypto.subtle;
 const enc = new TextEncoder();
@@ -43,6 +54,53 @@ async function sha256(...parts) {
   return new Uint8Array(await subtle.digest("SHA-256", concat(...parts)));
 }
 
+function compareKey(table, entry, key) {
+  const base = entry * ENTRY_BYTES;
+  for (let i = 0; i < KEY_BYTES; i++) {
+    const d = table[base + i] - key[i];
+    if (d) return d;
+  }
+  return 0;
+}
+
+/** Wordle feedback for `guess` against `answer`, as a base-3 code (position 0 = least significant). */
+export function feedbackCode(guess, answer) {
+  const result = Array(WORD_LENGTH).fill(0);
+  const remaining = {};
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (guess[i] === answer[i]) result[i] = 2;
+    else remaining[answer[i]] = (remaining[answer[i]] || 0) + 1;
+  }
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (result[i] !== 2 && remaining[guess[i]] > 0) {
+      result[i] = 1;
+      remaining[guess[i]]--;
+    }
+  }
+  return result.reduceRight((code, s) => code * 3 + s, 0);
+}
+
+function decodeFeedback(code) {
+  const out = [];
+  for (let i = 0; i < WORD_LENGTH; i++) { out.push(STATUSES[code % 3]); code = Math.floor(code / 3); }
+  return out;
+}
+
+/** Slow per-word hash: 5 key bytes + 1 mask byte. */
+async function wordHash(word, salt, id, iterations) {
+  const pep = pepper();
+  const base = await subtle.importKey("raw", enc.encode(word), "PBKDF2", false, ["deriveBits"]);
+  const bits = await subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: concat(salt, enc.encode(id), pep), iterations },
+    base,
+    64,
+  );
+  pep.fill(0);
+  return new Uint8Array(bits);
+}
+
+// ---- Sealed answer (only used to reveal after a loss) ---------------------
+
 async function layout(id, salt, fragment) {
   const seed = await sha256(enc.encode(`slots:${id}`), salt, fragment);
   const order = Array.from({ length: BLOCK_SIZE }, (_, i) => i);
@@ -54,14 +112,14 @@ async function layout(id, salt, fragment) {
   return { slots: order.slice(0, WORD_LENGTH), masks: masks.slice(0, WORD_LENGTH) };
 }
 
-async function deriveKey(id, salt, fragment) {
+async function revealKey(id, salt, fragment, tableDigest) {
   const pep = pepper();
-  const material = concat(pep, fragment, enc.encode(id));
+  const material = concat(pep, fragment, enc.encode(id), tableDigest);
   pep.fill(0);
   const base = await subtle.importKey("raw", material, "PBKDF2", false, ["deriveKey"]);
   material.fill(0);
   return subtle.deriveKey(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: ITERATIONS },
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: REVEAL_ITERATIONS },
     base,
     { name: "AES-GCM", length: 256 },
     false,
@@ -73,86 +131,133 @@ export function isSupported() {
   return !!subtle;
 }
 
-/**
- * Create a sealed puzzle object for `word` (5 letters a–z). Used by the build and set-word scripts.
- * `options.id` (16 hex chars) fixes the puzzle id; otherwise a random one is generated.
- */
-export async function sealPuzzle(word, options = {}) {
-  const w = String(word).toLowerCase();
-  if (!/^[a-z]{5}$/.test(w)) throw new Error("Word must be exactly 5 letters A–Z");
-  if (options.id !== undefined && !/^[0-9a-f]{16}$/.test(options.id)) throw new Error("Puzzle id must be 16 hex chars");
-  const rand = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n));
-
-  const id = options.id ?? toHex(rand(8));
-  const salt = rand(16);
-  const fragment = rand(16);
-  const iv = rand(12);
-
-  const { slots, masks } = await layout(id, salt, fragment);
-  const block = rand(BLOCK_SIZE);
-  for (let i = 0; i < WORD_LENGTH; i++) block[slots[i]] = w.charCodeAt(i) ^ masks[i];
-
-  const key = await deriveKey(id, salt, fragment);
-  const cipher = await subtle.encrypt({ name: "AES-GCM", iv, additionalData: enc.encode(`beandle:${id}`) }, key, block);
-  block.fill(0);
-
-  return { v: VERSION, id, s: toHex(salt), k: toHex(fragment), n: toHex(iv), c: toHex(new Uint8Array(cipher)) };
+/** Hash every allowed word and build the sorted table, or return null on a key collision. */
+async function buildTable(words, answer, tableSalt, id, iterations) {
+  const entries = new Array(words.length);
+  const BATCH = 512;
+  for (let start = 0; start < words.length; start += BATCH) {
+    const slice = words.slice(start, start + BATCH);
+    const hashes = await Promise.all(slice.map((g) => wordHash(g, tableSalt, id, iterations)));
+    hashes.forEach((h, j) => {
+      const entry = new Uint8Array(ENTRY_BYTES);
+      entry.set(h.subarray(0, KEY_BYTES));
+      entry[KEY_BYTES] = feedbackCode(slice[j], answer) ^ h[KEY_BYTES];
+      entries[start + j] = entry;
+    });
+  }
+  entries.sort((a, b) => {
+    for (let i = 0; i < KEY_BYTES; i++) if (a[i] !== b[i]) return a[i] - b[i];
+    return 0;
+  });
+  for (let i = 1; i < entries.length; i++) {
+    let same = true;
+    for (let k = 0; k < KEY_BYTES && same; k++) same = entries[i][k] === entries[i - 1][k];
+    if (same) return null;
+  }
+  return concat(...entries);
 }
 
 /**
- * Prepare a sealed puzzle for play. Returns helpers that decrypt on demand;
- * the word itself is never stored on the returned object.
+ * Build a puzzle for `answer`. `guessWords` is the allowed-guess list (the answer is always
+ * added). `options.id` (16 hex chars) fixes the puzzle id; otherwise it's random.
+ * Returns { meta, table }: meta is JSON-safe (puzzle.json), table is bytes (puzzle.bin).
  */
-export async function openPuzzle(puzzle) {
-  if (!puzzle || puzzle.v !== VERSION || !/^[0-9a-f]{16}$/.test(puzzle.id)) throw new Error("Bad puzzle data");
-  const id = puzzle.id;
-  const salt = fromHex(puzzle.s);
-  const fragment = fromHex(puzzle.k);
-  const iv = fromHex(puzzle.n);
-  const cipher = fromHex(puzzle.c);
-  const key = await deriveKey(id, salt, fragment);
-  const { slots, masks } = await layout(id, salt, fragment);
+export async function sealPuzzle(answer, guessWords, options = {}) {
+  const w = String(answer).toLowerCase();
+  if (!/^[a-z]{5}$/.test(w)) throw new Error("Word must be exactly 5 letters A–Z");
+  if (options.id !== undefined && !/^[0-9a-f]{16}$/.test(options.id)) throw new Error("Puzzle id must be 16 hex chars");
+  const iterations = options.iterations ?? GUESS_ITERATIONS;
+  const rand = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n));
+  const id = options.id ?? toHex(rand(8));
 
-  async function withLetters(fn) {
-    const block = new Uint8Array(
-      await subtle.decrypt({ name: "AES-GCM", iv, additionalData: enc.encode(`beandle:${id}`) }, key, cipher),
-    );
-    const letters = new Uint8Array(WORD_LENGTH);
-    for (let i = 0; i < WORD_LENGTH; i++) letters[i] = block[slots[i]] ^ masks[i];
-    block.fill(0);
-    try {
-      return fn(letters);
-    } finally {
-      letters.fill(0);
-    }
+  // Feedback table. Retries with a fresh salt in the (very unlikely) event of a key collision.
+  const words = [...new Set([...guessWords.map((g) => String(g).toLowerCase()), w])].filter((g) => /^[a-z]{5}$/.test(g));
+  let table = null;
+  let tableSalt = null;
+  for (let attempt = 0; attempt < 5 && !table; attempt++) {
+    tableSalt = rand(16);
+    table = await buildTable(words, w, tableSalt, id, iterations);
   }
+  if (!table) throw new Error("Could not build feedback table");
 
-  // Verify the puzzle decrypts cleanly up front.
-  await withLetters((letters) => {
-    if (!letters.every((c) => c >= 97 && c <= 122)) throw new Error("Bad puzzle data");
-  });
+  // Sealed answer for the loss reveal.
+  const salt = rand(16);
+  const fragment = rand(16);
+  const iv = rand(12);
+  const { slots, masks } = await layout(id, salt, fragment);
+  const block = rand(BLOCK_SIZE);
+  for (let i = 0; i < WORD_LENGTH; i++) block[slots[i]] = w.charCodeAt(i) ^ masks[i];
+  const tableDigest = await sha256(table);
+  const key = await revealKey(id, salt, fragment, tableDigest);
+  const cipher = await subtle.encrypt({ name: "AES-GCM", iv, additionalData: enc.encode(`beandle:${id}`) }, key, block);
+  block.fill(0);
+
+  const meta = {
+    v: VERSION,
+    id,
+    h: toHex(tableDigest.subarray(0, 8)),
+    n: iterations,
+    t: toHex(tableSalt),
+    s: toHex(salt),
+    k: toHex(fragment),
+    i: toHex(iv),
+    c: toHex(new Uint8Array(cipher)),
+  };
+  return { meta, table };
+}
+
+/**
+ * Prepare a puzzle for play. The returned object can score guesses (via the table) and,
+ * after a loss, reveal the answer. It never holds the answer itself.
+ */
+export async function openPuzzle(meta, tableBytes) {
+  if (!meta || meta.v !== VERSION || !/^[0-9a-f]{16}$/.test(meta.id)) throw new Error("Bad puzzle data");
+  const table = tableBytes instanceof Uint8Array ? tableBytes : new Uint8Array(tableBytes);
+  if (!table.length || table.length % ENTRY_BYTES) throw new Error("Bad puzzle data");
+  const id = meta.id;
+  const iterations = Number(meta.n);
+  if (!Number.isInteger(iterations) || iterations < 1000) throw new Error("Bad puzzle data");
+  const tableSalt = fromHex(meta.t);
+  const count = table.length / ENTRY_BYTES;
 
   return {
     id,
-    /** Per-letter result for `guess`: "correct" | "present" | "absent". */
-    score: (guess) => withLetters((letters) => {
-      const result = Array(WORD_LENGTH).fill("absent");
-      const remaining = new Uint8Array(26);
-      for (let i = 0; i < WORD_LENGTH; i++) {
-        if (guess.charCodeAt(i) === letters[i]) result[i] = "correct";
-        else remaining[letters[i] - 97]++;
-      }
-      for (let i = 0; i < WORD_LENGTH; i++) {
-        const c = guess.charCodeAt(i) - 97;
-        if (result[i] !== "correct" && remaining[c] > 0) {
-          result[i] = "present";
-          remaining[c]--;
+    /** Per-letter result for `guess`, or null if it isn't an allowed word. */
+    async score(guess) {
+      if (!/^[a-z]{5}$/.test(guess)) return null;
+      const h = await wordHash(guess, tableSalt, id, iterations);
+      let lo = 0;
+      let hi = count - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const cmp = compareKey(table, mid, h);
+        if (cmp === 0) {
+          const code = table[mid * ENTRY_BYTES + KEY_BYTES] ^ h[KEY_BYTES];
+          h.fill(0);
+          return code < 243 ? decodeFeedback(code) : null;
         }
+        if (cmp < 0) lo = mid + 1;
+        else hi = mid - 1;
       }
-      remaining.fill(0);
-      return result;
-    }),
-    /** Only call once the game is over. */
-    reveal: () => withLetters((letters) => String.fromCharCode(...letters)),
+      h.fill(0);
+      return null;
+    },
+    /** Only call once the game is lost. Deliberately slow. */
+    async reveal() {
+      const salt = fromHex(meta.s);
+      const fragment = fromHex(meta.k);
+      const key = await revealKey(id, salt, fragment, await sha256(table));
+      const block = new Uint8Array(
+        await subtle.decrypt({ name: "AES-GCM", iv: fromHex(meta.i), additionalData: enc.encode(`beandle:${id}`) }, key, fromHex(meta.c)),
+      );
+      const { slots, masks } = await layout(id, salt, fragment);
+      const letters = new Uint8Array(WORD_LENGTH);
+      for (let i = 0; i < WORD_LENGTH; i++) letters[i] = block[slots[i]] ^ masks[i];
+      block.fill(0);
+      const word = String.fromCharCode(...letters);
+      letters.fill(0);
+      if (!/^[a-z]{5}$/.test(word)) throw new Error("Bad puzzle data");
+      return word;
+    },
   };
 }

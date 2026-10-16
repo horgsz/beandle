@@ -18,6 +18,7 @@ import { VALID_GUESSES } from "../docs/words.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const puzzlePath = join(root, "docs", "puzzle.json");
+const tablePath = join(root, "docs", "puzzle.bin");
 const WORKFLOW = "deploy.yml";
 
 function fail(msg) {
@@ -84,10 +85,11 @@ if (flags.has("--remote")) {
   console.log("✔ Override set. Redeploying now (takes a minute or two); players get a fresh game.");
   console.log("  It stays in effect each day until you run: node scripts/set-word.mjs --clear-remote");
 } else {
-  const puzzle = await sealPuzzle(word);
-  const check = await (await openPuzzle(puzzle)).score(word);
-  if (!check.every((s) => s === "correct")) fail("Self-check failed; puzzle not written.");
-  await writeFile(puzzlePath, `${JSON.stringify(puzzle, null, 2)}\n`);
-  console.log(`✔ Wrote ${relative(process.cwd(), puzzlePath) || puzzlePath} for local play (git-ignored). Run: npm run serve`);
+  const { meta, table } = await sealPuzzle(word, VALID_GUESSES);
+  const check = await (await openPuzzle(meta, table)).score(word);
+  if (!check || !check.every((s) => s === "correct")) fail("Self-check failed; puzzle not written.");
+  await writeFile(puzzlePath, `${JSON.stringify(meta, null, 2)}\n`);
+  await writeFile(tablePath, table);
+  console.log(`✔ Wrote ${relative(process.cwd(), puzzlePath) || puzzlePath} and puzzle.bin for local play (git-ignored). Run: npm run serve`);
 }
 if (offList) console.log("  Note: that word isn't in docs/words.js, but it will still be accepted as the answer.");
