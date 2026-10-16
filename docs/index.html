@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fbf5ea" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Beandle — the daily bean word game</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫘</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <button class="icon-btn" id="help-btn" aria-label="How to play">?</button>
+    <h1>🫘 Beandle</h1>
+    <button class="icon-btn" id="stats-btn" aria-label="Statistics">📊</button>
+  </header>
+
+  <main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="board" aria-label="Game board"></div>
+    <div id="keyboard" aria-label="Keyboard"></div>
+  </main>
+
+  <div class="modal hidden" id="help-modal" role="dialog" aria-labelledby="help-title">
+    <div class="modal-content">
+      <button class="close" data-close>&times;</button>
+      <h2 id="help-title">How to play</h2>
+      <p>Guess the <strong>bean</strong> in 6 tries. Every answer is a five-letter bean.</p>
+      <p>Each guess must be a valid five-letter word. After each guess the tiles change colour:</p>
+      <ul>
+        <li><span class="mini correct">B</span> is in the word and in the right spot.</li>
+        <li><span class="mini present">E</span> is in the word but in the wrong spot.</li>
+        <li><span class="mini absent">A</span> is not in the word at all.</li>
+      </ul>
+      <p>Whenever a new bean is planted you get a fresh game.</p>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="stats-modal" role="dialog" aria-labelledby="stats-title">
+    <div class="modal-content">
+      <button class="close" data-close>&times;</button>
+      <h2 id="stats-title">Statistics</h2>
+      <div id="result-msg"></div>
+      <div class="stats">
+        <div><span id="stat-played">0</span>Played</div>
+        <div><span id="stat-win">0</span>Win %</div>
+        <div><span id="stat-streak">0</span>Current streak</div>
+        <div><span id="stat-max">0</span>Max streak</div>
+      </div>
+      <h3>Guess distribution</h3>
+      <div id="distribution"></div>
+      <div class="footer-row">
+        <div id="countdown"></div>
+        <button id="share-btn" class="hidden">Share</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>

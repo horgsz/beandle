@@ -1,0 +1,7 @@
+node_modules/
+_site/
+# Local-only puzzle written by scripts/set-word.mjs; the live one is generated at deploy time.
+docs/puzzle.json
+# Keep any local copy of your answer list out of git.
+beans.txt
+.DS_Store

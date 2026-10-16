@@ -1,0 +1,15 @@
+{
+  "name": "beandle",
+  "private": true,
+  "type": "module",
+  "description": "A Wordle clone where every answer is a five-letter bean.",
+  "scripts": {
+    "set-word": "node scripts/set-word.mjs",
+    "build": "node scripts/build-site.mjs",
+    "serve": "python3 -m http.server 8000 --directory docs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

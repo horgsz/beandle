@@ -1,0 +1,61 @@
+name: Deploy Beandle
+
+# Builds the site with the current puzzle and deploys it to GitHub Pages.
+# The puzzle day rolls over at 06:00 Sydney time. Cron runs in UTC, so we run at
+# 06:05 AEDT (19:05 UTC) and 06:05 AEST (20:05 UTC), plus a later fallback in case
+# runs are delayed or dropped. The build is stateless: every run on the same puzzle
+# day produces the same puzzle id, so extra runs never reset players' progress.
+
+on:
+  schedule:
+    - cron: "5 19 * * *"
+    - cron: "5 20 * * *"
+    - cron: "41 22 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        run: npm test
+
+      - name: Build site
+        env:
+          BEANDLE_WORDS: ${{ secrets.BEANDLE_WORDS }}
+          BEANDLE_SEED: ${{ secrets.BEANDLE_SEED }}
+          BEANDLE_OVERRIDE: ${{ secrets.BEANDLE_OVERRIDE }}
+        run: node scripts/build-site.mjs
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
