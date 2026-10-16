@@ -5,34 +5,34 @@ import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumb
 const SEED = "test-seed-0123456789abcdef";
 const WORDS = "apple, crane, slate, trace, flint\nghost plumb river stone quilt";
 
-test("puzzle day rolls over at 06:00 Sydney in summer (AEDT, UTC+11)", () => {
-  // 2026-01-15 06:00 AEDT = 2026-01-14 19:00 UTC
-  assert.equal(puzzleDate(new Date("2026-01-14T18:59:00Z")), "2026-01-14");
-  assert.equal(puzzleDate(new Date("2026-01-14T19:00:00Z")), "2026-01-15");
+test("puzzle day rolls over at 05:00 Sydney in summer (AEDT, UTC+11)", () => {
+  // 2026-01-15 05:00 AEDT = 2026-01-14 18:00 UTC
+  assert.equal(puzzleDate(new Date("2026-01-14T17:59:00Z")), "2026-01-14");
+  assert.equal(puzzleDate(new Date("2026-01-14T18:00:00Z")), "2026-01-15");
+  assert.equal(puzzleDate(new Date("2026-01-14T18:05:00Z")), "2026-01-15");
+  // 19:05 UTC run in summer is 06:05: same day, so same puzzle
   assert.equal(puzzleDate(new Date("2026-01-14T19:05:00Z")), "2026-01-15");
-  // 20:05 UTC run in summer is 07:05: same day, so same puzzle
-  assert.equal(puzzleDate(new Date("2026-01-14T20:05:00Z")), "2026-01-15");
 });
 
-test("puzzle day rolls over at 06:00 Sydney in winter (AEST, UTC+10)", () => {
-  // 2026-07-15 06:00 AEST = 2026-07-14 20:00 UTC
-  assert.equal(puzzleDate(new Date("2026-07-14T19:05:00Z")), "2026-07-14"); // 05:05, still yesterday
-  assert.equal(puzzleDate(new Date("2026-07-14T20:05:00Z")), "2026-07-15");
-  assert.equal(puzzleDate(new Date("2026-07-14T22:41:00Z")), "2026-07-15"); // fallback run
+test("puzzle day rolls over at 05:00 Sydney in winter (AEST, UTC+10)", () => {
+  // 2026-07-15 05:00 AEST = 2026-07-14 19:00 UTC
+  assert.equal(puzzleDate(new Date("2026-07-14T18:05:00Z")), "2026-07-14"); // 04:05, still yesterday
+  assert.equal(puzzleDate(new Date("2026-07-14T19:05:00Z")), "2026-07-15");
+  assert.equal(puzzleDate(new Date("2026-07-14T21:41:00Z")), "2026-07-15"); // fallback run
   assert.equal(puzzleDate(new Date("2026-07-15T13:59:00Z")), "2026-07-15"); // 23:59 Sydney
 });
 
 test("delayed runs still land on the right day", () => {
-  // Run scheduled 19:05 UTC but delayed 3 hours, winter → 08:05 AEST
-  assert.equal(puzzleDate(new Date("2026-07-14T22:05:00Z")), "2026-07-15");
+  // Run scheduled 18:05 UTC but delayed 3 hours, winter → 07:05 AEST
+  assert.equal(puzzleDate(new Date("2026-07-14T21:05:00Z")), "2026-07-15");
 });
 
 test("DST transition days", () => {
-  // DST ends 2026-04-05 03:00 AEDT → 02:00 AEST. 06:00 AEST on 04-05 = 04-04 20:00 UTC.
-  assert.equal(puzzleDate(new Date("2026-04-04T19:05:00Z")), "2026-04-04");
-  assert.equal(puzzleDate(new Date("2026-04-04T20:05:00Z")), "2026-04-05");
-  // DST starts 2026-10-04 02:00 AEST → 03:00 AEDT. 06:00 AEDT on 10-04 = 10-03 19:00 UTC.
-  assert.equal(puzzleDate(new Date("2026-10-03T19:05:00Z")), "2026-10-04");
+  // DST ends 2026-04-05 03:00 AEDT → 02:00 AEST. 05:00 AEST on 04-05 = 04-04 19:00 UTC.
+  assert.equal(puzzleDate(new Date("2026-04-04T18:05:00Z")), "2026-04-04");
+  assert.equal(puzzleDate(new Date("2026-04-04T19:05:00Z")), "2026-04-05");
+  // DST starts 2026-10-04 02:00 AEST → 03:00 AEDT. 05:00 AEDT on 10-04 = 10-03 18:00 UTC.
+  assert.equal(puzzleDate(new Date("2026-10-03T18:05:00Z")), "2026-10-04");
 });
 
 test("parseWords normalises and rejects bad entries without echoing them", () => {

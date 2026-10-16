@@ -345,7 +345,7 @@ function openStats() {
   else if (done) msg.textContent = `Has-bean! Today's bean was ${revealed.toUpperCase()}`;
   else msg.textContent = "";
   document.getElementById("share-btn").classList.toggle("hidden", !done);
-  document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 6am (Sydney)" : "";
+  document.getElementById("countdown").textContent = done ? "🌱 A fresh bean sprouts at 5am (Sydney)" : "";
 
   statsModal.classList.remove("hidden");
 }
