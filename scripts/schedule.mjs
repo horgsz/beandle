@@ -1,7 +1,7 @@
 // Daily word selection for the GitHub Actions build. Pure functions; nothing here logs.
 import { createHmac } from "node:crypto";
 
-export const ROLLOVER_HOUR = 5;
+export const ROLLOVER_HOUR = 12;
 export const TIME_ZONE = "Australia/Sydney";
 
 /** Sydney calendar date and hour for an instant. */
@@ -15,7 +15,7 @@ export function sydneyParts(now) {
 }
 
 /**
- * The puzzle date for an instant: today's Sydney date from 05:00 Sydney time, otherwise yesterday's.
+ * The puzzle date for an instant: today's Sydney date from 12:00 (noon) Sydney time, otherwise yesterday's.
  * Being stateless, any number of (possibly delayed) runs on the same puzzle day produce the same puzzle.
  */
 export function puzzleDate(now = new Date()) {

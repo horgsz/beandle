@@ -5,34 +5,38 @@ import { puzzleDate, parseWords, wordForDate, puzzleIdFor, choosePuzzle, dayNumb
 const SEED = "test-seed-0123456789abcdef";
 const WORDS = "apple, crane, slate, trace, flint\nghost plumb river stone quilt";
 
-test("puzzle day rolls over at 05:00 Sydney in summer (AEDT, UTC+11)", () => {
-  // 2026-01-15 05:00 AEDT = 2026-01-14 18:00 UTC
-  assert.equal(puzzleDate(new Date("2026-01-14T17:59:00Z")), "2026-01-14");
-  assert.equal(puzzleDate(new Date("2026-01-14T18:00:00Z")), "2026-01-15");
-  assert.equal(puzzleDate(new Date("2026-01-14T18:05:00Z")), "2026-01-15");
-  // 19:05 UTC run in summer is 06:05: same day, so same puzzle
-  assert.equal(puzzleDate(new Date("2026-01-14T19:05:00Z")), "2026-01-15");
+test("puzzle day rolls over at 12:00 (noon) Sydney in summer (AEDT, UTC+11)", () => {
+  // 2026-01-15 12:00 AEDT = 2026-01-15 01:00 UTC
+  assert.equal(puzzleDate(new Date("2026-01-15T00:59:00Z")), "2026-01-14");
+  assert.equal(puzzleDate(new Date("2026-01-15T01:00:00Z")), "2026-01-15");
+  assert.equal(puzzleDate(new Date("2026-01-15T01:05:00Z")), "2026-01-15");
+  // 02:05 UTC run in summer is 13:05: same day, so same puzzle
+  assert.equal(puzzleDate(new Date("2026-01-15T02:05:00Z")), "2026-01-15");
+  // 06:00 Sydney the next morning is still the 15th's puzzle
+  assert.equal(puzzleDate(new Date("2026-01-15T19:00:00Z")), "2026-01-15");
 });
 
-test("puzzle day rolls over at 05:00 Sydney in winter (AEST, UTC+10)", () => {
-  // 2026-07-15 05:00 AEST = 2026-07-14 19:00 UTC
-  assert.equal(puzzleDate(new Date("2026-07-14T18:05:00Z")), "2026-07-14"); // 04:05, still yesterday
-  assert.equal(puzzleDate(new Date("2026-07-14T19:05:00Z")), "2026-07-15");
-  assert.equal(puzzleDate(new Date("2026-07-14T21:41:00Z")), "2026-07-15"); // fallback run
+test("puzzle day rolls over at 12:00 (noon) Sydney in winter (AEST, UTC+10)", () => {
+  // 2026-07-15 12:00 AEST = 2026-07-15 02:00 UTC
+  assert.equal(puzzleDate(new Date("2026-07-15T01:05:00Z")), "2026-07-14"); // 11:05, still yesterday
+  assert.equal(puzzleDate(new Date("2026-07-15T02:05:00Z")), "2026-07-15");
+  assert.equal(puzzleDate(new Date("2026-07-15T04:41:00Z")), "2026-07-15"); // fallback run
   assert.equal(puzzleDate(new Date("2026-07-15T13:59:00Z")), "2026-07-15"); // 23:59 Sydney
+  assert.equal(puzzleDate(new Date("2026-07-16T01:59:00Z")), "2026-07-15"); // 11:59 next day
 });
 
 test("delayed runs still land on the right day", () => {
-  // Run scheduled 18:05 UTC but delayed 3 hours, winter → 07:05 AEST
-  assert.equal(puzzleDate(new Date("2026-07-14T21:05:00Z")), "2026-07-15");
+  // Run scheduled 01:05 UTC but delayed 3 hours, winter → 14:05 AEST
+  assert.equal(puzzleDate(new Date("2026-07-15T04:05:00Z")), "2026-07-15");
 });
 
 test("DST transition days", () => {
-  // DST ends 2026-04-05 03:00 AEDT → 02:00 AEST. 05:00 AEST on 04-05 = 04-04 19:00 UTC.
-  assert.equal(puzzleDate(new Date("2026-04-04T18:05:00Z")), "2026-04-04");
-  assert.equal(puzzleDate(new Date("2026-04-04T19:05:00Z")), "2026-04-05");
-  // DST starts 2026-10-04 02:00 AEST → 03:00 AEDT. 05:00 AEDT on 10-04 = 10-03 18:00 UTC.
-  assert.equal(puzzleDate(new Date("2026-10-03T18:05:00Z")), "2026-10-04");
+  // DST ends 2026-04-05 03:00 AEDT → 02:00 AEST. 12:00 AEST on 04-05 = 04-05 02:00 UTC.
+  assert.equal(puzzleDate(new Date("2026-04-05T01:05:00Z")), "2026-04-04");
+  assert.equal(puzzleDate(new Date("2026-04-05T02:05:00Z")), "2026-04-05");
+  // DST starts 2026-10-04 02:00 AEST → 03:00 AEDT. 12:00 AEDT on 10-04 = 10-04 01:00 UTC.
+  assert.equal(puzzleDate(new Date("2026-10-04T00:55:00Z")), "2026-10-03");
+  assert.equal(puzzleDate(new Date("2026-10-04T01:05:00Z")), "2026-10-04");
 });
 
 test("parseWords normalises and rejects bad entries without echoing them", () => {
@@ -71,7 +75,7 @@ test("puzzle ids: stable per day, fresh per day and per override, independent of
 });
 
 test("choosePuzzle: schedule, override, and validation", () => {
-  const now = new Date("2026-07-14T20:05:00Z");
+  const now = new Date("2026-07-15T02:05:00Z");
   const s = choosePuzzle({ words: WORDS, seed: SEED, now });
   assert.equal(s.source, "schedule");
   assert.equal(s.date, "2026-07-15");

@@ -1,6 +1,6 @@
 # Beandle 🫘
 
-A Wordle clone where every answer is a five-letter **bean**. A new bean is planted every day at **5am Sydney time**, and friends play it on GitHub Pages.
+A Wordle clone where every answer is a five-letter **bean**. A new bean is planted every day at **12pm (midday) Sydney time**, and friends play it on GitHub Pages.
 
 - 6 guesses to find a 5-letter word, with green/yellow/grey feedback on bean-shaped tiles
 - On-screen keyboard plus physical keyboard (letters, Enter, Backspace)
@@ -17,7 +17,7 @@ A Wordle clone where every answer is a five-letter **bean**. A new bean is plant
 | `docs/beanbox.js` | Builds and reads the feedback table and sealed answer (see [How the word is hidden](#how-the-word-is-hidden)) |
 | `.github/workflows/deploy.yml` | Builds the site with the day's puzzle and deploys it to Pages |
 | `scripts/build-site.mjs` | Used by the workflow: picks the day's word from the secrets and writes `_site/` |
-| `scripts/schedule.mjs` | Puzzle-day and word-selection logic (Sydney 5am rollover, seeded shuffle) |
+| `scripts/schedule.mjs` | Puzzle-day and word-selection logic (Sydney midday rollover, seeded shuffle) |
 | `scripts/set-word.mjs` | Manual word setting, either locally or as a live override |
 | `test/` | `npm test` (Node's built-in test runner; run `npm install` first) |
 
@@ -71,10 +71,10 @@ The site goes live at **https://horgsz.github.io/beandle/**.
 
 `.github/workflows/deploy.yml` runs:
 
-- **Every day on a schedule**, at 18:05 UTC (5:05am AEDT), 19:05 UTC (5:05am AEST), and 21:41 UTC as a fallback. GitHub's cron is UTC-only and runs can be late, so it runs at all three times instead of relying on one exact hour.
+- **Every day on a schedule**, at 01:05 UTC (12:05pm AEDT), 02:05 UTC (12:05pm AEST), and 04:41 UTC as a fallback. GitHub's cron is UTC-only and runs can be late, so it runs at all three times instead of relying on one exact hour.
 - **On every push to `main`**, and **on demand** (Run workflow / `gh workflow run deploy.yml`).
 
-Each run works out the **puzzle day**: today's Sydney date if it's 5am or later in Sydney, otherwise yesterday's. It then picks that day's word from the seeded shuffle and seals it into `puzzle.json` inside the Pages artifact. Nothing gets committed.
+Each run works out the **puzzle day**: today's Sydney date if it's 12pm (midday) or later in Sydney, otherwise yesterday's. It then picks that day's word from the seeded shuffle and seals it into `puzzle.json` inside the Pages artifact. Nothing gets committed.
 
 This is stateless, so extra or late runs are harmless. Every run on the same puzzle day produces the same puzzle id, so players' progress is kept. A new day gets a new id, so everyone gets a fresh board. Daylight saving is handled by checking actual Sydney time.
 
@@ -114,8 +114,8 @@ Open http://localhost:8000. To test the real build with a throwaway list and see
 ```sh
 BEANDLE_WORDS="apple ghost stone" BEANDLE_SEED=some-local-test-seed npm run build
 python3 -m http.server 8000 --directory _site
-# Preview another moment, e.g. just after 5am Sydney on 17 Oct 2026:
-BEANDLE_NOW=2026-10-16T18:05:00Z BEANDLE_WORDS="apple ghost stone" BEANDLE_SEED=some-local-test-seed npm run build
+# Preview another moment, e.g. just after midday Sydney on 17 Oct 2026:
+BEANDLE_NOW=2026-10-17T01:05:00Z BEANDLE_WORDS="apple ghost stone" BEANDLE_SEED=some-local-test-seed npm run build
 ```
 
 Run the tests with `npm test`.

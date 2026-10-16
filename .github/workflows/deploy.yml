@@ -1,16 +1,16 @@
 name: Deploy Beandle
 
 # Builds the site with the current puzzle and deploys it to GitHub Pages.
-# The puzzle day rolls over at 05:00 Sydney time. Cron runs in UTC, so we run at
-# 05:05 AEDT (18:05 UTC) and 05:05 AEST (19:05 UTC), plus a later fallback in case
+# The puzzle day rolls over at 12:00 (noon) Sydney time. Cron runs in UTC, so we run at
+# 12:05 AEDT (01:05 UTC) and 12:05 AEST (02:05 UTC), plus a later fallback in case
 # runs are delayed or dropped. The build is stateless: every run on the same puzzle
 # day produces the same puzzle id, so extra runs never reset players' progress.
 
 on:
   schedule:
-    - cron: "5 18 * * *"
-    - cron: "5 19 * * *"
-    - cron: "41 21 * * *"
+    - cron: "5 1 * * *"
+    - cron: "5 2 * * *"
+    - cron: "41 4 * * *"
   push:
     branches: [main]
   workflow_dispatch:
