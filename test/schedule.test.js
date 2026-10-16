@@ -89,7 +89,7 @@ test("choosePuzzle: schedule, override, and validation", () => {
   assert.throws(() => choosePuzzle({ words: WORDS, seed: SEED, override: "toolong", now }), /BEANDLE_OVERRIDE/);
 });
 
-test("from launch day, every window of list-length days has no repeats and no back-to-back words", () => {
+test("from launch day, any run of list-length consecutive days has no repeats", () => {
   const list = parseWords(WORDS);
   const n = list.length;
   for (const seed of [SEED, "another-seed-abcdef0123", "third-seed-0123456789abc"]) {
@@ -98,7 +98,6 @@ test("from launch day, every window of list-length days has no repeats and no ba
       d.setUTCDate(d.getUTCDate() + i);
       return wordForDate(list, seed, d.toISOString().slice(0, 10));
     });
-    for (let c = 0; c < 6; c++) assert.equal(new Set(seq.slice(c * n, (c + 1) * n)).size, n);
-    for (let i = 1; i < seq.length; i++) assert.notEqual(seq[i], seq[i - 1]);
+    for (let i = 0; i + n <= seq.length; i++) assert.equal(new Set(seq.slice(i, i + n)).size, n);
   }
 });

@@ -68,24 +68,15 @@ function shuffled(words, seed, cycle) {
 /** First puzzle day. Cycles through the word list are counted from here. */
 export const START_DATE = "2026-10-16";
 
-/** Shuffled order for one cycle, avoiding a back-to-back repeat across cycle boundaries. */
-function cycleOrder(words, seed, cycle) {
-  const order = shuffled(words, seed, cycle);
-  if (cycle > 0 && order.length > 1 && order[0] === shuffled(words, seed, cycle - 1).at(-1)) {
-    [order[0], order[1]] = [order[1], order[0]];
-  }
-  return order;
-}
-
 /**
- * Word for a puzzle date. Starting at START_DATE, walks through a seeded shuffle of the
- * list, then reshuffles, so no word repeats until every word has been used.
+ * Word for a puzzle date. From START_DATE the words follow one seeded shuffle, repeated
+ * forever, so every word comes back exactly every list-length days and any run of that
+ * many consecutive days has no repeats.
  */
 export function wordForDate(words, seed, date) {
   const day = dayNumber(date) - dayNumber(START_DATE);
   const n = words.length;
-  const cycle = Math.floor(day / n);
-  return cycleOrder(words, seed, cycle)[((day % n) + n) % n];
+  return shuffled(words, seed, 0)[((day % n) + n) % n];
 }
 
 /** Puzzle id: keyed by the secret seed so it reveals nothing about the word. */
