@@ -20,12 +20,12 @@ test("the built site publishes only the minified bundle and puzzle files, never 
       BEANDLE_SEED: "build-test-seed-0123456789",
       BEANDLE_OVERRIDE: ANSWER,
       BEANDLE_FACTS: JSON.stringify({ PINTO: FACT, crane: "not today" }),
-      BEANDLE_NOW: "2026-10-17T05:00:00Z", // 4pm Sydney: no preload
+      BEANDLE_NOW: "2026-10-17T05:00:00Z", // 4pm Sydney
     },
     stdio: "pipe",
   });
 
-  assert.deepEqual((await readdir(site)).sort(), ["app.js", "index.html", "puzzle.bin", "puzzle.json", "style.css"]);
+  assert.deepEqual((await readdir(site)).sort(), ["app.js", "index.html", "next.bin", "next.json", "puzzle.bin", "puzzle.json", "style.css"]);
 
   const app = await readFile(join(site, "app.js"), "utf8");
   // No guess-word list and no readable module source in the bundle.
@@ -47,7 +47,7 @@ test("the built site publishes only the minified bundle and puzzle files, never 
   assert.ok(Number.isInteger(p.day));
 });
 
-test("morning builds also ship tomorrow's puzzle, locked until 12pm Sydney", async () => {
+test("builds also ship tomorrow's puzzle, locked until 12pm Sydney", async () => {
   execFileSync(process.execPath, [join(root, "scripts/build-site.mjs")], {
     cwd: root,
     env: {

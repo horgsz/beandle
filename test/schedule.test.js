@@ -15,18 +15,21 @@ test("the new bean goes live at exactly 12:00 Sydney, in summer and winter", () 
   assert.equal(rolloverInstant("2026-10-04").toISOString(), "2026-10-04T01:00:00.000Z"); // DST starts that morning
 });
 
-test("tomorrow's puzzle is preloaded only in the 3 hours before noon", () => {
+test("tomorrow's puzzle is preloaded all day, but never goes live before noon", () => {
   // AEDT: noon on the 17th = 01:00 UTC on the 17th
-  assert.equal(upcoming(new Date("2026-10-16T21:59:00Z")), null); // 08:59 — too early
-  for (const t of ["2026-10-16T23:07:00Z", "2026-10-16T23:37:00Z", "2026-10-17T00:07:00Z", "2026-10-17T00:37:00Z"]) {
-    const up = upcoming(new Date(t)); // 10:07–11:37 AEDT
+  for (const t of ["2026-10-16T01:07:00Z", "2026-10-16T05:00:00Z", "2026-10-16T21:59:00Z", "2026-10-17T00:41:00Z"]) {
+    const up = upcoming(new Date(t)); // 12:07pm on the 16th through 11:41am on the 17th
     assert.equal(up.date, "2026-10-17");
     assert.equal(up.liveAt.toISOString(), "2026-10-17T01:00:00.000Z");
   }
-  assert.equal(upcoming(new Date("2026-10-17T01:07:00Z")), null); // 12:07 — already live
+  // Once the 17th's bean is live, builds preload the 18th's instead.
+  assert.equal(upcoming(new Date("2026-10-17T01:07:00Z")).date, "2026-10-18");
   // AEST: noon on 15 Jul = 02:00 UTC
   assert.equal(upcoming(new Date("2026-07-15T01:37:00Z")).date, "2026-07-15");
-  assert.equal(upcoming(new Date("2026-07-15T02:41:00Z")), null);
+  assert.equal(upcoming(new Date("2026-07-15T02:41:00Z")).date, "2026-07-16");
+  // Noon-to-noon over the end of daylight saving is 25 hours: the first hour has no preload.
+  assert.equal(upcoming(new Date("2026-04-04T01:30:00Z")), null); // 12:30pm AEDT, Sat 4 Apr
+  assert.equal(upcoming(new Date("2026-04-04T03:00:00Z")).date, "2026-04-05");
 });
 
 const SEED = "test-seed-0123456789abcdef";

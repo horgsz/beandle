@@ -87,13 +87,16 @@ export function rolloverInstant(date) {
   throw new Error(`No ${ROLLOVER_HOUR}:00 in Sydney on ${date}`);
 }
 
-/** How long before the rollover the next puzzle is published (locked until rollover). */
-export const PRELOAD_HOURS = 3;
+/**
+ * How long before the rollover the next puzzle is published (locked until rollover). A full day,
+ * so any build since the last rollover already has the next bean ready.
+ */
+export const PRELOAD_HOURS = 24;
 
 /**
  * The next puzzle date and the instant it goes live, if that's within PRELOAD_HOURS of `now`.
- * Morning builds ship it so the site can switch exactly at the rollover, without depending on
- * a scheduled run landing on time.
+ * Builds ship it so the site can switch exactly at the rollover, without depending on a
+ * scheduled run landing on time.
  */
 export function upcoming(now = new Date()) {
   const d = new Date(`${puzzleDate(now)}T00:00:00Z`);

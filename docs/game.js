@@ -632,7 +632,7 @@ async function fetchPair(name) {
 }
 
 /**
- * The puzzle to play right now. Morning builds also ship tomorrow's puzzle as next.json with
+ * The puzzle to play right now. Builds also ship tomorrow's puzzle as next.json with
  * a `liveAt` time (12pm Sydney); once that time passes we switch to it, even before the next
  * deploy lands. Returns { meta, table, switchAt } where switchAt is when to switch, if pending.
  */

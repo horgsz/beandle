@@ -73,12 +73,12 @@ The site goes live at **https://horgsz.github.io/beandle/**.
 
 `.github/workflows/deploy.yml` runs:
 
-- **Several times a day on a schedule**: 23:07, 23:37, 00:07, 00:37, 01:07 and 01:37 UTC (about 10am–12:30pm Sydney), plus 02:41 and 03:41 UTC. GitHub's cron is UTC-only and runs are often late, so there are several tries, avoiding the busy top of the hour.
+- **Every 3 hours on a schedule**, at :41 past (00:41, 03:41 … 21:41 UTC). GitHub's cron is UTC-only and best-effort (runs are often late and sometimes skipped), so there are plenty of tries, avoiding the busy top of the hour.
 - **On every push to `main`**, and **on demand** (Run workflow / `gh workflow run deploy.yml`).
 
 Each run works out the **puzzle day**: today's Sydney date if it's 12pm (midday) or later in Sydney, otherwise yesterday's. It then picks that day's word from the seeded shuffle and seals it into `puzzle.json` inside the Pages artifact. Nothing gets committed.
 
-**The new bean goes live at exactly 12:00pm Sydney.** Runs in the 3 hours before noon also publish the next day's puzzle as `next.json`/`next.bin`, sealed like any other puzzle and tagged with its go-live time. The game switches to it at 12:00 on the dot: on load if it's past noon, or by itself if the page is already open. So the bean is ready by 12pm even if a run is delayed. Afternoon runs drop the preloaded copy once it's live.
+**The new bean goes live at exactly 12:00pm Sydney.** Every run also publishes the next day's puzzle as `next.json`/`next.bin`, sealed like any other puzzle and tagged with its go-live time. The game keeps playing the current bean until then, and switches at 12:00 on the dot: on load if it's past noon, or by itself if the page is already open. So any one successful run since the previous noon is enough for the new bean to be ready by 12pm, even if later runs are delayed or dropped.
 
 This is stateless, so extra or late runs are harmless. Every run on the same puzzle day produces the same puzzle id, so players' progress is kept. A new day gets a new id, so everyone gets a fresh board. Daylight saving is handled by checking actual Sydney time.
 
